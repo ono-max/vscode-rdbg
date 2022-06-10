@@ -77,9 +77,9 @@ export function activate(context: vscode.ExtensionContext) {
 	let traces: Array<any>;
 	vscode.debug.onDidReceiveDebugSessionCustomEvent(event => {
 		switch (event.event) {
-			case 'TraceInfoUpdated':
-				traces = event.body.traces;
-				updateWebview(traces, currentPanel);
+			case 'recordsUpdated':
+				const records = event.body.records;
+				updateWebview(records, currentPanel);
 				break;
 		}
 	})
@@ -130,6 +130,17 @@ export function activate(context: vscode.ExtensionContext) {
           enableScripts: true,
           localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'media')), vscode.Uri.file(path.join(context.extensionPath, 'node_modules'))]
         });
+				currentPanel.webview.onDidReceiveMessage((message) => {
+					switch (message.command) {
+						case 'goHere':
+							const session = vscode.debug.activeDebugSession
+							if (session === undefined) {
+								return
+							}
+							session.customRequest('goHere', {'times': message.times})
+							return;
+					}
+				})
         currentPanel.webview.html = getWebviewContent(currentPanel, context);
 				updateWebview(traces, currentPanel);
 
@@ -141,14 +152,14 @@ export function activate(context: vscode.ExtensionContext) {
   );
 }
 
-function updateWebview(traces: Array<any>, panel: vscode.WebviewPanel | undefined) {
-	if (panel === undefined || traces === undefined ) {
+function updateWebview(records: Array<any>, panel: vscode.WebviewPanel | undefined) {
+	if (panel === undefined || records === undefined ) {
 		return
 	}
-		panel.webview.postMessage({
-			command: 'update',
-			arguments: traces
-		})
+	panel.webview.postMessage({
+		command: 'update',
+		arguments: records
+	})
 };
 
 function getWebviewContent(panel: vscode.WebviewPanel, context: vscode.ExtensionContext) {
@@ -168,15 +179,12 @@ function getWebviewContent(panel: vscode.WebviewPanel, context: vscode.Extension
 <body>
 		<div id="container">
 			<button id="visualizeButton">Visualize Traces</button>
-			<table>
+			<table align="center">
 				<thead>
 					<tr>
 						<th></th>
-						<th>Thread ID</th>
-						<th>Direction</th>
-						<th>Method</th>
+						<th>Name</th>
 						<th>Location</th>
-						<th>Returned Value</th>
 					</tr>
 				</thead>
 				<tbody id="tbody-view"></tbody>
