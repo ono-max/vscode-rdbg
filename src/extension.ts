@@ -150,6 +150,9 @@ export function activate(context: vscode.ExtensionContext) {
 						if (session === undefined) {
 							return
 						}
+						vscode.workspace.openTextDocument({ content: `foo` }).then(doc => {
+							vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
+						})
 						session.customRequest(message.command, {'times': message.times}).then(undefined, console.error)
 						break;
 					case 'startRecord':
@@ -192,6 +195,9 @@ export function activate(context: vscode.ExtensionContext) {
 						return
 					}
 					session.customRequest(message.command, {'times': message.times}).then(undefined, console.error)
+					vscode.workspace.openTextDocument({ content: `foo` }).then(doc => {
+						vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
+					})
 					break;
 				case 'startRecord':
 				case 'stopRecord':

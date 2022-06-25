@@ -259,8 +259,6 @@ const SVG_ICONS = {
                 const records = data.records;
                 const logIndex = data.logIndex;
                 curPage = 1;
-                console.log(records);
-                console.log(logIndex);
                 update(records, logIndex);
                 vscode.setState({
                     records: records,
