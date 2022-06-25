@@ -2,13 +2,13 @@
 
 const SVG_ICONS = {
     goTo: `
-            <svg version="1.1" width="16" height="16" xmlns="http://www.w3.org/2000/svg" id="goToButton">
+            <svg version="1.1" width="16" height="16" xmlns="http://www.w3.org/2000/svg">
                <path d="M 0 2 L 8 8 L 0 14 Z" />
                <path d="M 8 2 L 16 8 L 8 14 Z" />
             </svg>
         `,
     goBackTo: `
-            <svg version="1.1" width="16" height="16" xmlns="http://www.w3.org/2000/svg" id="goBackToButton">
+            <svg version="1.1" width="16" height="16" xmlns="http://www.w3.org/2000/svg">
                 <path d="M 16 14 L 8 8 L 16 2 Z" />
                 <path d="M 8 14 L 0 8 L 8 2 Z" />
             </svg>
@@ -16,13 +16,13 @@ const SVG_ICONS = {
     startRecord: `
             <svg version="1.1" width="16" height="16" xmlns="http://www.w3.org/2000/svg" class="start">
                 <circle cx="50%" cy="50%" r="7.5" fill="transparent" stroke="red" />
-                <circle cx="50%" cy="50%" r="4" stroke="red" fill="red" />
+                <circle cx="50%" cy="50%" r="4" stroke="red" fill="transparent" />
             </svg>
         `,
     stopRecord: `
             <svg version="1.1" width="16" height="16" xmlns="http://www.w3.org/2000/svg" class="stop">
                 <circle cx="50%" cy="50%" r="7.5" fill="transparent" stroke="red" />
-                <rect x="32%" y="32%" width="6" height="6" stroke="red" fill="red"/>
+                <rect x="32%" y="32%" width="6" height="6" stroke="red" fill="red" />
             </svg>
     `
 };
@@ -43,39 +43,49 @@ const SVG_ICONS = {
     if (actionsElement !== null) {
         const ul = document.createElement('ul');
         // TODO: Do not insert startRecord because it's not always.
-        const li = document.createElement('li');
-        li.classList.add('recordButton');
-        li.innerHTML = SVG_ICONS.startRecord;
-        ul.appendChild(li)
-
-        appendListElement(ul, SVG_ICONS.goBackTo);
-        appendListElement(ul, SVG_ICONS.goTo);
+        appendListElement(ul, SVG_ICONS.startRecord, 'recordButton');
+        appendListElement(ul, SVG_ICONS.goBackTo, 'goBackToButton');
+        appendListElement(ul, SVG_ICONS.goTo, 'goToButton');
         actionsElement.appendChild(ul)
     }
 
-    function appendListElement(parent, text) {
+    function appendListElement(parent, text, className) {
         const li = document.createElement('li');
         li.innerHTML = text;
+        li.classList.add(className);
         parent.appendChild(li)
     }
 
     const nextButton = document.querySelector('#nextButton')
     const prevButton = document.querySelector('#prevButton')
+    const goBackToButton = document.querySelector('.goBackToButton')
+    const goToButton = document.querySelector('.goToButton')
+    const recordButton = document.querySelector('.recordButton')
+    // if (nextButton === null || prevButton === null || recordButton === null || goBackToButton === null || goToButton === null) {
+    //     return
+    // }
 
     nextButton.addEventListener('click', goToNextPage, false)
     prevButton.addEventListener('click', goToPrevPage, false)
-    document.querySelector('.recordButton')?.addEventListener('click', startRecord, false)
-    document.querySelector('#goBackToButton')?.addEventListener('click', goBackToOnce, false)
-    document.querySelector('#goToButton')?.addEventListener('click', goToOnce, false)
+    recordButton.addEventListener('click', startRecord, false)
+    goBackToButton.addEventListener('click', goBackToOnce, false)
+    goToButton.addEventListener('click', goToOnce, false)
+
+    disableControlButtons();
 
     function update(records, logIdx) {
+        if (recordButton === null) {
+            return;
+        }
+        recordButton.innerHTML = SVG_ICONS.stopRecord;
+        enableAllCommandButtons();
         curRecords = records;
         logIndex = logIdx;
         maxPage = Math.ceil(curRecords.length / pageSize);
         const targetRec = findTargetRecords()
         const index = curRecords.findIndex(rec => Object.is(rec, targetRec[0]));
         renderPage(targetRec, index);
-        disableButtons();
+        disablePageButtons();
     };
 
     function findTargetRecords() {
@@ -109,7 +119,7 @@ const SVG_ICONS = {
         const end = curRecords.length - (maxPage - curPage) * pageSize;
         const start = end - pageSize;
         renderPage(curRecords.slice(start, end), start)
-        disableButtons();
+        disablePageButtons();
     }
 
     function goToPrevPage() {
@@ -123,10 +133,10 @@ const SVG_ICONS = {
             start = 0;
         }
         renderPage(curRecords.slice(start, end), start)
-        disableButtons();
+        disablePageButtons();
     }
 
-    function disableButtons() {
+    function disablePageButtons() {
         prevButton.disabled = false;
         nextButton.disabled = false;
         if (curPage === maxPage) {
@@ -156,6 +166,8 @@ const SVG_ICONS = {
             command: 'goBackTo',
             times: 1
         })
+        disableControlButtons();
+        recordButton.classList.add('disabled');
     }
 
     function goToOnce() {
@@ -163,6 +175,22 @@ const SVG_ICONS = {
             command: 'goTo',
             times: 1
         })
+        disableControlButtons();
+        recordButton.classList.add('disabled');
+    }
+
+    function enableAllCommandButtons() {
+        // if (recordButton === null || goBackToButton === null || goToButton === null) {
+        //     return;
+        // }
+        recordButton.classList.remove('disabled');
+        goBackToButton.classList.remove('disabled');
+        goToButton.classList.remove('disabled');
+    }
+
+    function disableControlButtons() {
+        goBackToButton.classList.add('disabled');
+        goToButton.classList.add('disabled');
     }
 
     function renderPage(records, id) {
@@ -330,10 +358,7 @@ const SVG_ICONS = {
         focused.click()
     }
 
-    const prevState = vscode.getState()
-    if (prevState) {
-        maxPage = prevState.maxPage;
-        curPage = prevState.curPage;
-        update(prevState.records, prevState.logIndex)
-    }
+    // vscode.postMessage({
+    //     command: 'viewLoaded'
+    // })
 }());

@@ -126,6 +126,7 @@ export function activate(context: vscode.ExtensionContext) {
 	let currentPanel: vscode.WebviewPanel | undefined = undefined;
 	const commandId = 'HistoryViewer.start'
 	let extensionPath: string;
+	let curFileUri: vscode.Uri;
 	context.subscriptions.push(
     vscode.commands.registerCommand(commandId, () => {
       const viewColumn = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
@@ -150,7 +151,7 @@ export function activate(context: vscode.ExtensionContext) {
 						if (session === undefined) {
 							return
 						}
-						vscode.workspace.openTextDocument({ content: `foo` }).then(doc => {
+						vscode.workspace.openTextDocument(curFileUri).then(doc => {
 							vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
 						})
 						session.customRequest(message.command, {'times': message.times}).then(undefined, console.error)
@@ -165,6 +166,10 @@ export function activate(context: vscode.ExtensionContext) {
 			})
 			currentPanel.webview.html = getWebviewContent();
 			updateWebview(currentPanel, traces, logIndex);
+
+			vscode.window.onDidChangeTextEditorSelection((e) => {
+				curFileUri = e.textEditor.document.uri;
+			})
 
 			currentPanel.onDidDispose(() => {
 				currentPanel?.dispose();
@@ -189,13 +194,24 @@ export function activate(context: vscode.ExtensionContext) {
 		currentPanel.webview.onDidReceiveMessage((message) => {
 			const session = vscode.debug.activeDebugSession;
 			switch (message.command) {
+				case 'viewLoaded':
+					if (currentPanel === undefined || traces === undefined || traces.length === 0 ) {
+						return
+					}
+					currentPanel.webview.postMessage({
+						command: 'update',
+						records: traces,
+						logIndex: logIndex
+					})
+					break
+
 				case 'goTo':
 				case 'goBackTo':
 					if (session === undefined) {
 						return
 					}
 					session.customRequest(message.command, {'times': message.times}).then(undefined, console.error)
-					vscode.workspace.openTextDocument({ content: `foo` }).then(doc => {
+					vscode.workspace.openTextDocument(curFileUri).then(doc => {
 						vscode.window.showTextDocument(doc, vscode.ViewColumn.One);
 					})
 					break;
@@ -210,8 +226,11 @@ export function activate(context: vscode.ExtensionContext) {
 		currentPanel.webview.html = getWebviewContent();
 		updateWebview(currentPanel, traces, logIndex);
 
+		vscode.window.onDidChangeTextEditorSelection((e) => {
+			curFileUri = e.textEditor.document.uri;
+		})
+
 		currentPanel.onDidDispose(() => {
-			currentPanel?.dispose();
 			currentPanel = undefined;
 		});
 
@@ -231,7 +250,6 @@ export function activate(context: vscode.ExtensionContext) {
 			records: records,
 			logIndex: logIndex
 		})
-		traces = []
 	};
 
 	function getWebviewContent() {

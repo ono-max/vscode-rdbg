@@ -47,12 +47,8 @@ button:not(:disabled) {
     cursor: pointer;
 }
 
-svg {
-    cursor: pointer;
-    stroke: skyblue ;
-    stroke-width: 1px;
-    fill: transparent;
-    stroke-linejoin: round;
+circle {
+    stroke-width: 1.5px;
 }
 
 ul {
@@ -67,6 +63,19 @@ ul {
     margin-right: auto;
     margin-left: auto;
     align-items: center;
+}
+
+li {
+    cursor: pointer;
+    stroke: skyblue ;
+    stroke-width: 1px;
+    fill: transparent;
+    stroke-linejoin: round;
+}
+
+li[class~="disabled"] {
+    cursor: not-allowed;
+    filter: brightness(0.5);
 }
 
 li:hover {
