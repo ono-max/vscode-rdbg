@@ -61,9 +61,9 @@ const SVG_ICONS = {
     const goBackToButton = document.querySelector('.goBackToButton')
     const goToButton = document.querySelector('.goToButton')
     const recordButton = document.querySelector('.recordButton')
-    // if (nextButton === null || prevButton === null || recordButton === null || goBackToButton === null || goToButton === null) {
-    //     return
-    // }
+    if (nextButton === null || prevButton === null || recordButton === null || goBackToButton === null || goToButton === null) {
+        return
+    }
 
     nextButton.addEventListener('click', goToNextPage, false)
     prevButton.addEventListener('click', goToPrevPage, false)
@@ -78,7 +78,6 @@ const SVG_ICONS = {
             return;
         }
         recordButton.innerHTML = SVG_ICONS.stopRecord;
-        enableAllCommandButtons();
         curRecords = records;
         logIndex = logIdx;
         maxPage = Math.ceil(curRecords.length / pageSize);
@@ -86,6 +85,7 @@ const SVG_ICONS = {
         const index = curRecords.findIndex(rec => Object.is(rec, targetRec[0]));
         renderPage(targetRec, index);
         disablePageButtons();
+        enableAvailCmdButtons();
     };
 
     function findTargetRecords() {
@@ -136,6 +136,7 @@ const SVG_ICONS = {
         disablePageButtons();
     }
 
+    // TODO: enableAvailCmdと同じような感じにする
     function disablePageButtons() {
         prevButton.disabled = false;
         nextButton.disabled = false;
@@ -162,30 +163,42 @@ const SVG_ICONS = {
     }
 
     function goBackToOnce() {
+        if (logIndex === 0) {
+            return
+        }
+        disableControlButtons();
+        recordButton.classList.add('disabled');
         vscode.postMessage({
             command: 'goBackTo',
             times: 1
         })
-        disableControlButtons();
-        recordButton.classList.add('disabled');
     }
 
     function goToOnce() {
+        const lastRec = curRecords[curRecords.length - 1]
+        if (lastRec.begin_cursor + lastRec.locations.length <= logIndex) {
+            return
+        }
+        disableControlButtons();
+        recordButton.classList.add('disabled');
         vscode.postMessage({
             command: 'goTo',
             times: 1
         })
-        disableControlButtons();
-        recordButton.classList.add('disabled');
     }
 
-    function enableAllCommandButtons() {
-        // if (recordButton === null || goBackToButton === null || goToButton === null) {
-        //     return;
-        // }
+    function enableAvailCmdButtons() {
+        if (recordButton === null || goBackToButton === null || goToButton === null) {
+            return;
+        }
         recordButton.classList.remove('disabled');
-        goBackToButton.classList.remove('disabled');
-        goToButton.classList.remove('disabled');
+        if (logIndex !== 0) {
+            goBackToButton.classList.remove('disabled');
+        }
+        const lastRec = curRecords[curRecords.length - 1]
+        if (lastRec.begin_cursor + lastRec.locations.length > logIndex) {
+            goToButton.classList.remove('disabled');
+        }
     }
 
     function disableControlButtons() {
@@ -301,64 +314,24 @@ const SVG_ICONS = {
     document.addEventListener('keydown', bindShortcut, false)
 
     function bindShortcut(e) {
+        console.log(e)
         switch (e.key) {
             case 'ArrowDown':
-                focusDownElement();
+                goBackToOnce();
                 break;
             case 'ArrowUp':
-                focusUpElement();
+                goToOnce();
                 break;
             case 'ArrowRight':
-                focusRightElement();
+                goToOnce();
                 break;
             case 'ArrowLeft':
+                goBackToOnce();
                 break;
         }
     }
 
-    const focusedName = 'focused'
-
-    function focusDownElement() {
-        const focused = document.querySelector('.focused');
-        if (focused === null) {
-            const firstFrame = document.querySelector('.frame');
-            if (firstFrame == null) {
-                return;
-            }
-            firstFrame.classList.add(focusedName);
-        } else {
-            if (focused.nextElementSibling !== null) {
-                focused.classList.remove(focusedName);
-                focused.nextElementSibling.classList.add(focusedName);
-            }
-        }
-    }
-
-    function focusUpElement() {
-        const focused = document.querySelector('.focused');
-        if (focused === null) {
-            const firstFrame = document.querySelector('.frame');
-            if (firstFrame == null) {
-                return;
-            }
-            firstFrame.classList.add(focusedName);
-        } else {
-            if (focused.previousElementSibling !== null) {
-                focused.classList.remove(focusedName);
-                focused.previousElementSibling.classList.add(focusedName);
-            }
-        }
-    }
-
-    function focusRightElement() {
-        const focused = document.querySelector('.focused');
-        if (focused === null) {
-            return;
-        }
-        focused.click()
-    }
-
-    // vscode.postMessage({
-    //     command: 'viewLoaded'
-    // })
+    vscode.postMessage({
+        command: 'viewLoaded'
+    })
 }());

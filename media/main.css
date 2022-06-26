@@ -49,6 +49,7 @@ button:not(:disabled) {
 
 circle {
     stroke-width: 1.5px;
+    stroke: rgb(246, 107, 107);
 }
 
 ul {
@@ -57,7 +58,6 @@ ul {
     list-style: none;
     justify-content: space-evenly;
     background-color: rgba(51, 51, 51);
-    box-shadow: 5px 5px 5px black;
     width: 25%;
     height: 32px;
     margin-right: auto;
