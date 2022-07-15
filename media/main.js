@@ -15,14 +15,14 @@ const SVG_ICONS = {
         `,
     startRecord: `
             <svg version="1.1" width="16" height="16" xmlns="http://www.w3.org/2000/svg" class="start">
-                <circle cx="50%" cy="50%" r="7.5" fill="transparent" stroke="red" />
-                <circle cx="50%" cy="50%" r="4" stroke="red" fill="transparent" />
+                <circle cx="50%" cy="50%" r="7.5" fill="transparent" />
+                <circle cx="50%" cy="50%" r="4" fill="transparent" />
             </svg>
         `,
     stopRecord: `
             <svg version="1.1" width="16" height="16" xmlns="http://www.w3.org/2000/svg" class="stop">
-                <circle cx="50%" cy="50%" r="7.5" fill="transparent" stroke="red" />
-                <rect x="32%" y="32%" width="6" height="6" stroke="red" fill="red" />
+                <circle cx="50%" cy="50%" r="7.5" fill="transparent" />
+                <rect x="32%" y="32%" width="6" height="6" fill="red" />
             </svg>
     `
 };
@@ -31,8 +31,8 @@ const SVG_ICONS = {
     // @ts-ignore
     const vscode = acquireVsCodeApi();
 
-    let curRecords;
-    let logIndex;
+    let curRecords = [];
+    let logIndex = 0;
     let eventTriggered;
     let maxPage;
 
@@ -42,6 +42,7 @@ const SVG_ICONS = {
     const actionsElement = document.querySelector('#actions');
     if (actionsElement !== null) {
         const ul = document.createElement('ul');
+        ul.classList.add('debugButtons')
         // TODO: Do not insert startRecord because it's not always.
         appendListElement(ul, SVG_ICONS.startRecord, 'recordButton');
         appendListElement(ul, SVG_ICONS.goBackTo, 'goBackToButton');
@@ -61,6 +62,7 @@ const SVG_ICONS = {
     const goBackToButton = document.querySelector('.goBackToButton')
     const goToButton = document.querySelector('.goToButton')
     const recordButton = document.querySelector('.recordButton')
+    const dropDownBtn = document.querySelector('#dropdownBtn');
     if (nextButton === null || prevButton === null || recordButton === null || goBackToButton === null || goToButton === null) {
         return
     }
@@ -70,6 +72,7 @@ const SVG_ICONS = {
     recordButton.addEventListener('click', startRecord, false)
     goBackToButton.addEventListener('click', goBackToOnce, false)
     goToButton.addEventListener('click', goToOnce, false)
+    dropDownBtn.addEventListener('click', dropDownMenu, false)
 
     disableControlButtons();
 
@@ -134,6 +137,47 @@ const SVG_ICONS = {
         }
         renderPage(curRecords.slice(start, end), start)
         disablePageButtons();
+    }
+
+    let frameMap = new Map();
+
+    function createFrameMap() {
+        curRecords.forEach((record) => {
+            // TODO: index(timestamp的な)を用意して最後にsort
+            const splits = record.name.split(/#|\./);
+            const key = splits[0]
+            if (frameMap.has(key)) {
+                frameMap.get(key).push(record)
+            } else {
+                frameMap.set(key, [record])
+            }
+        })
+    }
+    
+    function dropDownMenu() {
+        const menu = document.createElement('div');
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = 'Class Name';
+        // input.addEventListener('keyup', filterClass, false);
+
+        menu.appendChild(input);
+        const ul = document.createElement('ul');
+        ul.classList.add('frameNames');
+        createFrameMap();
+        for (let name of frameMap.keys()) {
+            const li = document.createElement('li');
+            li.innerHTML = name;
+            li.setAttribute('data-frame-key', name)
+            li.addEventListener('click', filterFrames, false)
+            ul.appendChild(li)
+        }
+        menu.appendChild(ul);
+        this.insertAdjacentElement('afterend', menu);
+    }
+
+    function filterFrames() {
+        console.log(this.dataset.frameKey);
     }
 
     // TODO: enableAvailCmdと同じような感じにする
@@ -206,17 +250,25 @@ const SVG_ICONS = {
         goToButton.classList.add('disabled');
     }
 
+    const space = "\xA0"
+
     function renderPage(records, id) {
         resetView();
         const tbody = document.querySelector('#frames');
         let recordIndex = id;
         let clickable = true;
+        const minDepth = findMinDepth(records);
         records.forEach((record) => {
             const div = document.createElement('div');
-            div.classList.add('frame')
-            div.setAttribute('data-index', recordIndex.toString())
-            const indent = "\xA0".repeat(record.frame_depth);
-            createTableData(`${indent}${record.name}`, div);
+            div.classList.add('frame');
+            div.setAttribute('data-index', recordIndex.toString());
+            const frameInfo = document.createElement('div');
+            const indent = space.repeat(record.frame_depth - minDepth);
+            const name = document.createTextNode(`${indent}${record.name}`);
+            frameInfo.appendChild(name);
+            const args = getArgs(record.args);
+            frameInfo.appendChild(args);
+            div.appendChild(frameInfo);
             div.addEventListener('click', showLocations, false);
             tbody.appendChild(div);
             if (clickable && record.begin_cursor + record.locations.length > logIndex) {
@@ -227,6 +279,29 @@ const SVG_ICONS = {
         })
     }
 
+    function getArgs(args) {
+        let data = ""
+        args.forEach((arg) => {
+            data += `${space}${arg.name}=${arg.value}`
+        })
+        const text = document.createTextNode(data);
+        const span = document.createElement('span');
+        span.classList.add('args')
+        span.appendChild(text);
+        return span
+    }
+
+    function findMinDepth(records) {
+        let min = records[0].frame_depth
+        for (let i = 1; i < records.length; i++) {
+            const depth = records[i].frame_depth
+            if (min > depth) {
+                min = depth;
+            }
+        }
+        return min
+    }
+ 
     let currentStoppedCursor = null;
 
     function showLocations() {
@@ -237,14 +312,13 @@ const SVG_ICONS = {
         }
         const recordIdx = this.dataset.index;
         const record = curRecords[recordIdx];
-        const empty = "\xA0".repeat(8);
         let cursor = record.begin_cursor;
         const parent = document.createElement('div')
         record.locations.forEach((loc) => {
             const div = document.createElement('div');
             div.classList.add('location');
             div.setAttribute('data-cursor', cursor);
-            createTableData(`${empty}${loc}`, div);
+            createTableData(loc, div);
             div.addEventListener('click', goHere, false);
             if (cursor === logIndex) {
                 div.classList.add('stopped');
@@ -301,12 +375,6 @@ const SVG_ICONS = {
                 const logIndex = data.logIndex;
                 curPage = 1;
                 update(records, logIndex);
-                vscode.setState({
-                    records: records,
-                    logIndex: logIndex,
-                    maxPage: maxPage,
-                    curPage: curPage
-                })
                 break;
         };
     });
@@ -314,7 +382,10 @@ const SVG_ICONS = {
     document.addEventListener('keydown', bindShortcut, false)
 
     function bindShortcut(e) {
-        console.log(e)
+        // TODO: こんな感じでreturn
+        // if (e.target.querySelector('.form')) {
+        //     return
+        // }
         switch (e.key) {
             case 'ArrowDown':
                 goBackToOnce();

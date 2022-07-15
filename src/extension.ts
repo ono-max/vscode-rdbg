@@ -112,7 +112,6 @@ export function activate(context: vscode.ExtensionContext) {
 	let currentPanel: vscode.WebviewPanel | undefined = undefined;
 	const commandId = 'HistoryViewer.start'
 	let extensionPath: string;
-	let curFileUri: vscode.Uri;
 	let disposables: vscode.Disposable[] = []
 	context.subscriptions.push(
     vscode.commands.registerCommand(commandId, () => {
@@ -163,18 +162,19 @@ export function activate(context: vscode.ExtensionContext) {
 						if (session === undefined) {
 							return
 						}
+
+						focusNonWebViewEditor();
 						session.customRequest(message.command, {'times': message.times}).then(undefined, console.error)
-						console.log(curFileUri);
-						vscode.workspace.openTextDocument(curFileUri).then(doc => {
-							vscode.window.showTextDocument(doc, vscode.ViewColumn.One, false);
-						})
 						break;
 					case 'startRecord':
 					case 'stopRecord':
 						if (session === undefined) {
 							return
 						}
-						session.customRequest(message.command).then(undefined, console.error)
+
+						focusNonWebViewEditor();
+						session.customRequest(message.command).then(undefined, console.error);
+						break;
 				}
 			})
 		)
@@ -182,16 +182,25 @@ export function activate(context: vscode.ExtensionContext) {
 		updateWebview(currentPanel, logIndex);
 
 		registerDisposable(
-			vscode.window.onDidChangeTextEditorSelection((e) => {
-				curFileUri = e.textEditor.document.uri;
-			})
-		)
-
-		registerDisposable(
 			currentPanel.onDidDispose(() => {
 				currentPanel = undefined;
 			})
 		);
+	}
+
+	function focusNonWebViewEditor() {
+		let uri: vscode.Uri | undefined = undefined;
+		for (let editor of vscode.window.visibleTextEditors) {
+			if (editor.document.uri !== undefined) {
+				uri = editor.document.uri;
+				break;
+			}
+		}
+		if (uri !== undefined) {
+			vscode.workspace.openTextDocument(uri).then(doc => {
+				vscode.window.showTextDocument(doc, vscode.ViewColumn.One, false);
+			})
+		}
 	}
 
 	vscode.debug.onDidTerminateDebugSession(() => {
@@ -265,6 +274,7 @@ export function activate(context: vscode.ExtensionContext) {
 				</head>
 				<body>
 						<div id="container">
+							<button id="dropdownBtn">Dropdown</button>
 							<div id="actions"></div>
 							<div id="frames"></div>
 							<button id="prevButton">Previous</button>

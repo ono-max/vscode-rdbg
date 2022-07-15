@@ -1,11 +1,15 @@
-#container {
+body {
     width: 100%;
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size);
+    font-weight: var(--vscode-editor-font-weight);
+    background-color: var(--vscode-editor-background);
+    color: var(--vscode-editor-foreground);
 }
 
 .frame {
     cursor: pointer;
     white-space: nowrap;
-    overflow: auto;
 }
 
 .frame:hover {
@@ -45,6 +49,15 @@ button:not(:disabled) {
 
 .recordButton {
     cursor: pointer;
+    stroke: var(--vscode-debugIcon-stopForeground);
+}
+
+.goToButton {
+    stroke: var(--vscode-debugIcon-stepIntoForeground);
+}
+
+.goBackToButton {
+    stroke: var(--vscode-debugIcon-stepBackForeground);
 }
 
 circle {
@@ -52,7 +65,7 @@ circle {
     stroke: rgb(246, 107, 107);
 }
 
-ul {
+.debugButtons {
     display: flex;
     padding: 0;
     list-style: none;
@@ -65,19 +78,28 @@ ul {
     align-items: center;
 }
 
-li {
+.debugButtons > li {
     cursor: pointer;
-    stroke: skyblue ;
     stroke-width: 1px;
     fill: transparent;
     stroke-linejoin: round;
 }
 
-li[class~="disabled"] {
+.debugButtons > li[class~="disabled"] {
     cursor: not-allowed;
     filter: brightness(0.5);
 }
 
-li:hover {
+.debugButtons > li:hover {
     background-color: rgba(90, 90, 90);
+}
+
+.args {
+    opacity: 0.5;
+}
+
+.frameNames {
+    list-style: none;
+    background-color: var(--vscode-menu-background);
+    color: var(--vscode-menu-foreground);
 }
