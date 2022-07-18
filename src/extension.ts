@@ -274,7 +274,7 @@ export function activate(context: vscode.ExtensionContext) {
 				</head>
 				<body>
 						<div id="container">
-							<button id="dropdownBtn">Dropdown</button>
+							<button id="dropdownBtn" aria-expanded="false">Dropdown</button>
 							<div id="actions"></div>
 							<div id="frames"></div>
 							<button id="prevButton">Previous</button>
