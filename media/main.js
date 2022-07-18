@@ -22,7 +22,19 @@ const SVG_ICONS = {
     stopRecord: `
             <svg version="1.1" width="16" height="16" xmlns="http://www.w3.org/2000/svg" class="stop">
                 <circle cx="50%" cy="50%" r="7.5" fill="transparent" />
-                <rect x="32%" y="32%" width="6" height="6" fill="red" />
+                <rect x="32%" y="32%" width="6" height="6" />
+            </svg>
+        `,
+    expanded: `
+            <svg version="1.1" width="12" xmlns="http://www.w3.org/2000/svg">
+                <path d="M 1 5 L 6 9" />
+                <path d="M 6 9 L 11 5" />
+            </svg>
+    `,
+    collapsed: `
+            <svg version="1.1" width="12" height="14" xmlns="http://www.w3.org/2000/svg">
+                <path d="M 4 2 L 8 7" />
+                <path d="M 8 7 L 4 12" />
             </svg>
     `
 };
@@ -30,6 +42,111 @@ const SVG_ICONS = {
 (function () {
     // @ts-ignore
     const vscode = acquireVsCodeApi();
+
+    class DropDownMenu {
+        constructor(curRecords, mixin) {
+            this.recordMap = new Map;
+            this.curRecords = curRecords;
+            Object.assign(this, mixin)
+        }
+    
+       #createRecordMap() {
+            this.curRecords.forEach((record) => {
+                const splits = record.name.split(/#|\./);
+                const key = splits[0]
+                if (this.recordMap.has(key)) {
+                    this.recordMap.get(key).push(record)
+                } else {
+                    this.recordMap.set(key, [record])
+                }
+            })
+        }
+    
+        show() {
+            const dropDownBtn = document.querySelector('#dropdownBtn');
+            if (dropDownBtn === null) return
+            const menu = document.querySelector('.dropDownMenu');
+            if (dropDownBtn.getAttribute('aria-expanded') === 'true') {
+                dropDownBtn.setAttribute('aria-expanded', 'false')
+                if (menu instanceof HTMLElement) {
+                    menu.style.display = 'none';
+                }
+                return;
+            }
+
+            if (menu instanceof HTMLElement) {
+                menu.style.display = 'block';
+                dropDownBtn.setAttribute('aria-expanded', 'true')
+                return;
+            }
+
+            const ul = document.createElement('ul');
+            ul.className = 'dropDownMenu';
+            const record = document.createElement('li');
+            record.classList.add('record', 'selected');
+            const text = document.createTextNode('All Frames');
+            record.appendChild(text);
+            record.addEventListener('click', (e) => {
+                dropDownBtn.setAttribute('aria-expanded', 'false');
+                ul.style.display = 'none';
+                const menu = document.querySelector('.dropDownMenu');
+                if (menu !== null) {
+                    for (let i = 0; i < menu.children.length; i++) {
+                        menu.children[i].classList.remove('selected');
+                    }
+                }
+                if (e.target instanceof HTMLElement) {
+                    e.target.classList.add('selected');
+                    this.rerender(this.curRecords);
+                }
+            })
+            ul.appendChild(record);
+            const filterInput = document.createElement('li');
+            filterInput.className = 'filterInput';
+            const input = document.createElement('input');
+            if (dropDownBtn === null) return
+            dropDownBtn.setAttribute('aria-expanded', 'true');
+            input.type = 'text';
+            input.placeholder = 'Class Name';
+            filterInput.appendChild(input);
+            ul.appendChild(filterInput);
+            
+            this.#createRecordMap();
+            for (let name of this.recordMap.keys()) {
+                const li = document.createElement('li');
+                li.classList.add('record');
+                const text = document.createTextNode(name);
+                li.appendChild(text);
+                li.setAttribute('data-frame-key', name);
+                li.addEventListener('click', (e) => {
+                    dropDownBtn.setAttribute('aria-expanded', 'false');
+                    ul.style.display = 'none';
+                    const menu = document.querySelector('.dropDownMenu');
+                    if (menu !== null) {
+                        for (let i = 0; i < menu.children.length; i++) {
+                            menu.children[i].classList.remove('selected');
+                        }
+                    }
+                    if (e.target instanceof HTMLElement) {
+                        e.target.classList.add('selected');
+                        const key = e.target.dataset.frameKey;
+                        const records = this.recordMap.get(key);
+                        this.activate(records);
+                    }
+                })
+                ul.appendChild(li)
+            }
+            dropDownBtn.insertAdjacentElement('afterend', ul);
+        }
+
+        activate(_records) {
+            throw new Error('should be overridden in mixin')
+        }
+
+        rerender(_records) {
+            throw new Error('should be overridden in mixin')
+        }
+    }
 
     let curRecords = [];
     let logIndex = 0;
@@ -74,6 +191,11 @@ const SVG_ICONS = {
     goToButton.addEventListener('click', goToOnce, false)
     dropDownBtn.addEventListener('click', dropDownMenu, false)
 
+    function dropDownMenu() {
+        const menu = new DropDownMenu(curRecords, recordRendererMixin);
+        menu.show()
+    }
+
     disableControlButtons();
 
     function update(records, logIdx) {
@@ -85,8 +207,7 @@ const SVG_ICONS = {
         logIndex = logIdx;
         maxPage = Math.ceil(curRecords.length / pageSize);
         const targetRec = findTargetRecords()
-        const index = curRecords.findIndex(rec => Object.is(rec, targetRec[0]));
-        renderPage(targetRec, index);
+        recordRendererMixin.activate(targetRec);
         disablePageButtons();
         enableAvailCmdButtons();
     };
@@ -119,10 +240,7 @@ const SVG_ICONS = {
             return;
         }
         curPage += 1;
-        const end = curRecords.length - (maxPage - curPage) * pageSize;
-        const start = end - pageSize;
-        renderPage(curRecords.slice(start, end), start)
-        disablePageButtons();
+        recordRendererMixin.rerender();
     }
 
     function goToPrevPage() {
@@ -130,54 +248,7 @@ const SVG_ICONS = {
             return;
         }
         curPage -= 1
-        const end = curRecords.length - (maxPage - curPage) * pageSize;
-        let start = end - pageSize;
-        if (start < 0) {
-            start = 0;
-        }
-        renderPage(curRecords.slice(start, end), start)
-        disablePageButtons();
-    }
-
-    let frameMap = new Map();
-
-    function createFrameMap() {
-        curRecords.forEach((record) => {
-            // TODO: index(timestamp的な)を用意して最後にsort
-            const splits = record.name.split(/#|\./);
-            const key = splits[0]
-            if (frameMap.has(key)) {
-                frameMap.get(key).push(record)
-            } else {
-                frameMap.set(key, [record])
-            }
-        })
-    }
-    
-    function dropDownMenu() {
-        const menu = document.createElement('div');
-        const input = document.createElement('input');
-        input.type = 'text';
-        input.placeholder = 'Class Name';
-        // input.addEventListener('keyup', filterClass, false);
-
-        menu.appendChild(input);
-        const ul = document.createElement('ul');
-        ul.classList.add('frameNames');
-        createFrameMap();
-        for (let name of frameMap.keys()) {
-            const li = document.createElement('li');
-            li.innerHTML = name;
-            li.setAttribute('data-frame-key', name)
-            li.addEventListener('click', filterFrames, false)
-            ul.appendChild(li)
-        }
-        menu.appendChild(ul);
-        this.insertAdjacentElement('afterend', menu);
-    }
-
-    function filterFrames() {
-        console.log(this.dataset.frameKey);
+        recordRendererMixin.rerender();
     }
 
     // TODO: enableAvailCmdと同じような感じにする
@@ -207,6 +278,9 @@ const SVG_ICONS = {
     }
 
     function goBackToOnce() {
+        if (recordButton.classList.contains('disabled')) {
+            return
+        }
         if (logIndex === 0) {
             return
         }
@@ -219,6 +293,9 @@ const SVG_ICONS = {
     }
 
     function goToOnce() {
+        if (recordButton.classList.contains('disabled')) {
+            return
+        }
         const lastRec = curRecords[curRecords.length - 1]
         if (lastRec.begin_cursor + lastRec.locations.length <= logIndex) {
             return
@@ -252,84 +329,108 @@ const SVG_ICONS = {
 
     const space = "\xA0"
 
-    function renderPage(records, id) {
-        resetView();
-        const tbody = document.querySelector('#frames');
-        let recordIndex = id;
-        let clickable = true;
-        const minDepth = findMinDepth(records);
-        records.forEach((record) => {
-            const div = document.createElement('div');
-            div.classList.add('frame');
-            div.setAttribute('data-index', recordIndex.toString());
-            const frameInfo = document.createElement('div');
-            const indent = space.repeat(record.frame_depth - minDepth);
-            const name = document.createTextNode(`${indent}${record.name}`);
-            frameInfo.appendChild(name);
-            const args = getArgs(record.args);
-            frameInfo.appendChild(args);
-            div.appendChild(frameInfo);
-            div.addEventListener('click', showLocations, false);
-            tbody.appendChild(div);
-            if (clickable && record.begin_cursor + record.locations.length > logIndex) {
-                div.click();
-                clickable = false;
+    const recordRendererMixin = {
+        rerender() {
+            const end = curRecords.length - (maxPage - curPage) * pageSize;
+            let start = end - pageSize;
+            if (start < 0) {
+                start = 0;
             }
-            recordIndex += 1;
-        })
-    }
+            this.activate(curRecords.slice(start, end))
+            disablePageButtons();
+        },
 
-    function getArgs(args) {
-        let data = ""
-        args.forEach((arg) => {
-            data += `${space}${arg.name}=${arg.value}`
-        })
-        const text = document.createTextNode(data);
-        const span = document.createElement('span');
-        span.classList.add('args')
-        span.appendChild(text);
-        return span
-    }
+        activate(records) {
+            this.resetView();
+            const tbody = document.querySelector('#frames');
+            const minDepth = this.findMinDepth(records);
+            records.forEach((record) => {
+                const div = document.createElement('div');
+                div.classList.add('frame');
+                div.setAttribute('data-index', record.index);
+                const collapsible = document.createElement('div');
+                collapsible.classList.add('collapsible');
+                collapsible.innerHTML = SVG_ICONS.collapsed;
+                div.appendChild(collapsible);
+                const depth = record.frame_depth - minDepth
+                div.style.paddingLeft = `${depth}em`;
+                div.setAttribute('data-depth', depth.toString())
+                const name = document.createTextNode(record.name);
+                div.appendChild(name);
+                const args = this.getArgs(record.args);
+                div.appendChild(args);
+                div.addEventListener('click', this.showLocations, false);
+                tbody.appendChild(div);
+                record.locations.forEach((loc) => {
+                    if (loc.current) {
+                        div.click()
+                    }
+                })
+            })
+        },
 
-    function findMinDepth(records) {
-        let min = records[0].frame_depth
-        for (let i = 1; i < records.length; i++) {
-            const depth = records[i].frame_depth
-            if (min > depth) {
-                min = depth;
+        showLocations() {
+            const result = this.classList.toggle('locationShowed');
+            const collapsible = this.querySelector('.collapsible');
+            if (!result) {
+                collapsible.innerHTML = SVG_ICONS.collapsed;
+                this.nextElementSibling.remove();
+                return;
             }
+            collapsible.innerHTML = SVG_ICONS.expanded
+            const recordIdx = this.dataset.index;
+            const record = curRecords[recordIdx];
+            let cursor = record.begin_cursor;
+            const parent = document.createElement('div')
+            const depth = parseInt(this.dataset.depth) + 2
+            record.locations.forEach((loc) => {
+                const div = document.createElement('div');
+                div.classList.add('location');
+                div.setAttribute('data-cursor', cursor);
+                const regexp = /\.rbenv\/versions\/\d\.\d\.\d\/lib\//
+                const name = loc.name.replace(regexp, '');
+                div.style.paddingLeft = `${depth}em`;
+                createTableData(name, div);
+                div.addEventListener('click', goHere, false);
+                if (loc.current) {
+                    div.classList.add('stopped');
+                    currentStoppedCursor = cursor;
+                }
+                parent.appendChild(div);
+                cursor += 1;
+            })
+            this.insertAdjacentElement('afterend', parent)
+        },
+
+        findMinDepth(records) {
+            let min = records[0].frame_depth
+            for (let i = 1; i < records.length; i++) {
+                const depth = records[i].frame_depth
+                if (min > depth) {
+                    min = depth;
+                }
+            }
+            return min
+        },
+
+        getArgs(args) {
+            const span = document.createElement('span');
+            span.classList.add('args')
+            if (args === null) return span
+            let data = ""
+            args.forEach((arg) => {
+                data += `${space}${arg.name}=${arg.value}`
+            })
+            const text = document.createTextNode(data);
+            span.appendChild(text);
+            return span
+        },
+
+        resetView() {
+            const frames = document.querySelector('#frames');
+            frames.innerHTML = '';
         }
-        return min
     }
- 
-    let currentStoppedCursor = null;
-
-    function showLocations() {
-        const result = this.classList.toggle('locationShowed');
-        if (!result) {
-            this.nextElementSibling.remove();
-            return;
-        }
-        const recordIdx = this.dataset.index;
-        const record = curRecords[recordIdx];
-        let cursor = record.begin_cursor;
-        const parent = document.createElement('div')
-        record.locations.forEach((loc) => {
-            const div = document.createElement('div');
-            div.classList.add('location');
-            div.setAttribute('data-cursor', cursor);
-            createTableData(loc, div);
-            div.addEventListener('click', goHere, false);
-            if (cursor === logIndex) {
-                div.classList.add('stopped');
-                currentStoppedCursor = cursor;
-            }
-            parent.appendChild(div);
-            cursor += 1;
-        })
-        this.insertAdjacentElement('afterend', parent)
-    }
-
 
     function goHere() {
         if (this.classList.contains('stopped') || eventTriggered) {
@@ -354,17 +455,12 @@ const SVG_ICONS = {
         })
     }
 
-    function resetView() {
-        const frames = document.querySelector('#frames');
-        frames.innerHTML = '';
-    }
-
     function createTableData(data, parent) {
-        const div = document.createElement('div');
         const text = document.createTextNode(data);
-        div.appendChild(text);
-        parent.appendChild(div);
+        parent.appendChild(text);
     }
+ 
+    let currentStoppedCursor = null;
 
     window.addEventListener('message', event => {
         const data = event.data;
