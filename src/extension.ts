@@ -282,7 +282,7 @@ class HistoryViewerPanel {
 				</head>
 				<body>
 						<div id="container">
-							<input type="text" class="">
+							<input type="text" class="filterInput">
 							<div id="actions"></div>
 							<div id="frames"></div>
 							<button id="prevButton">Previous</button>
