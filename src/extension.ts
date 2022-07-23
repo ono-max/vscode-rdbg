@@ -109,51 +109,108 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
-	let currentPanel: vscode.WebviewPanel | undefined = undefined;
-	const commandId = 'HistoryViewer.start'
-	let extensionPath: string;
-	let disposables: vscode.Disposable[] = []
-	context.subscriptions.push(
-    vscode.commands.registerCommand(commandId, () => {
-      const viewColumn = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
-      if (currentPanel) {
-        return currentPanel.reveal(viewColumn);
-      }
-			currentPanel = vscode.window.createWebviewPanel('rdbg', 'history viewer', vscode.ViewColumn.Beside, {
-				enableScripts: true,
-				localResourceRoots: [vscode.Uri.file(path.join(context.extensionPath, 'media')), vscode.Uri.file(path.join(context.extensionPath, 'node_modules'))]
-			});
-			extensionPath = context.extensionPath;
-			const session = vscode.debug.activeDebugSession;
-			if (session === undefined) {
-				currentPanel.webview.html = getWelcomePage();
-				return
-			}
-			startWebView();
-    })
-  );
+	const HistoryViewer = 'HistoryViewer.start'
 
-	function registerDisposable(disp: vscode.Disposable) {
-		disposables.push(disp);
+	context.subscriptions.push(
+		vscode.commands.registerCommand(HistoryViewer, () => {
+			HistoryViewerPanel.show(context.extensionPath)
+		})
+	);
+
+	const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+	statusBar.command = HistoryViewer
+	statusBar.text = '$(eye) History Viewer'
+	statusBar.show();
+}
+
+export function deactivate() {
+}
+
+class HistoryViewerPanel {
+	private static currentPanel: vscode.WebviewPanel | undefined;
+	public static show(extensionPath: string) {
+		if (HistoryViewerPanel.currentPanel) {
+			const viewColumn = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
+			return HistoryViewerPanel.currentPanel.reveal(viewColumn);
+		}
+
+		const panel = new HistoryViewerPanel(extensionPath);
+		panel.reveal()
 	}
 
-	function startWebView() {
-		if (currentPanel === undefined) {
+	private readonly _extensionPath: string;
+	private readonly _panel: vscode.WebviewPanel;
+
+	private disposables: vscode.Disposable[] = [];
+	private partialTraces: any[] = [];
+	private completeTraces: any[] = [];
+	private logIndex: number = -1;
+
+	private constructor(extensionPath: string) {
+		const currentPanel = vscode.window.createWebviewPanel('rdbg', 'history viewer', vscode.ViewColumn.Beside, {
+			enableScripts: true,
+			localResourceRoots: [vscode.Uri.file(path.join(extensionPath, 'media'))]
+		});
+		HistoryViewerPanel.currentPanel = currentPanel;
+		this._extensionPath = extensionPath;
+		this._panel = currentPanel;
+
+		vscode.debug.onDidStartDebugSession(() => {
+			this.registerDisposable(
+				vscode.debug.onDidReceiveDebugSessionCustomEvent(event => {
+					switch (event.event) {
+						case 'recordsUpdated':
+							this.partialTraces = this.partialTraces.concat(event.body.records);
+							if (event.body.fin) {
+								this.logIndex = event.body.log_index;
+								this.completeTraces = this.partialTraces;
+								this.updateWebview();
+								this.partialTraces = []
+							}
+							break;
+					}
+				})
+			)
+			this.startWebView();
+		})
+
+		vscode.debug.onDidTerminateDebugSession(() => {
+			this.completeTraces = []
+			this.logIndex = -1
+			currentPanel.webview.html = this.getWelcomePage();
+			this.disposables.forEach(disp => {
+				disp.dispose();
+			})
+		})
+	}
+
+	private reveal() {
+		const session = vscode.debug.activeDebugSession;
+		if (session === undefined) {
+			this._panel.webview.html = this.getWelcomePage();
 			return
 		}
 
-		registerDisposable(
-			currentPanel.webview.onDidReceiveMessage((message) => {
+		this.startWebView()
+	}
+
+	private registerDisposable(disp: vscode.Disposable) {
+		this.disposables.push(disp);
+	}
+
+	private startWebView() {
+		this.registerDisposable(
+			this._panel.webview.onDidReceiveMessage((message) => {
 				const session = vscode.debug.activeDebugSession;
 				switch (message.command) {
 					case 'viewLoaded':
-						if (currentPanel === undefined || completeTraces.length === 0 ) {
+						if (this.completeTraces.length === 0 ) {
 							return
 						}
-						currentPanel.webview.postMessage({
+						this._panel.webview.postMessage({
 							command: 'update',
-							records: completeTraces,
-							logIndex: logIndex
+							records: this.completeTraces,
+							logIndex: this.logIndex
 						})
 						break
 	
@@ -163,7 +220,7 @@ export function activate(context: vscode.ExtensionContext) {
 							return
 						}
 
-						focusNonWebViewEditor();
+						this.focusNonWebViewEditor();
 						session.customRequest(message.command, {'times': message.times}).then(undefined, console.error)
 						break;
 					case 'startRecord':
@@ -172,24 +229,18 @@ export function activate(context: vscode.ExtensionContext) {
 							return
 						}
 
-						focusNonWebViewEditor();
+						this.focusNonWebViewEditor();
 						session.customRequest(message.command).then(undefined, console.error);
 						break;
 				}
 			})
 		)
-		currentPanel.webview.html = getWebviewContent();
-		updateWebview(currentPanel, logIndex);
-
-		registerDisposable(
-			currentPanel.onDidDispose(() => {
-				currentPanel = undefined;
-			})
-		);
+		this._panel.webview.html = this.getWebviewContent();
+		this.updateWebview();
 	}
 
-	function focusNonWebViewEditor() {
-		let uri: vscode.Uri | undefined = undefined;
+	private focusNonWebViewEditor() {
+		let uri: vscode.Uri | undefined;
 		for (let editor of vscode.window.visibleTextEditors) {
 			if (editor.document.uri !== undefined) {
 				uri = editor.document.uri;
@@ -203,65 +254,22 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
-	vscode.debug.onDidTerminateDebugSession(() => {
-		if (currentPanel === undefined) {
+	private updateWebview() {
+		if (!this._panel.visible || this.completeTraces.length === 0 ) {
 			return
 		}
-		completeTraces = []
-		logIndex = 0
-		currentPanel.webview.html = getWelcomePage();
-		disposables.forEach(disp => {
-			disp.dispose();
-		})
-	})
-
-	let partialTraces: any[] = [];
-	let completeTraces: any[] = [];
-	let logIndex: number;
-
-	vscode.debug.onDidStartDebugSession(() => {
-		registerDisposable(
-			vscode.debug.onDidReceiveDebugSessionCustomEvent(event => {
-				switch (event.event) {
-					case 'recordsUpdated':
-						partialTraces = partialTraces.concat(event.body.records);
-						logIndex = event.body.log_index;
-						if (event.body.fin) {
-							completeTraces = partialTraces;
-							updateWebview(currentPanel, logIndex);
-							partialTraces = []
-						}
-						break;
-				}
-			})
-		)
-		startWebView();
-	})
-
-	const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-	statusBar.command = commandId
-	statusBar.text = '$(eye) History Viewer'
-	statusBar.show();
-
-	function updateWebview(panel: vscode.WebviewPanel | undefined, logIndex: number) {
-		if (panel === undefined || !panel.visible || completeTraces.length === 0 ) {
-			return
-		}
-		panel.webview.postMessage({
+		this._panel.webview.postMessage({
 			command: 'update',
-			records: completeTraces,
-			logIndex: logIndex
+			records: this.completeTraces,
+			logIndex: this.logIndex
 		})
 	};
 
-	function getWebviewContent() {
-		if (currentPanel === undefined) {
-			return ""
-		}
-		const styleMainUri = vscode.Uri.file(path.join(extensionPath, 'media', 'main.css'));
-		const styleMainSrc = currentPanel.webview.asWebviewUri(styleMainUri);
-		const scriptMainUri = vscode.Uri.file(path.join(extensionPath, 'media', 'main.js'));
-		const scriptMainSrc = currentPanel.webview.asWebviewUri(scriptMainUri);
+	private getWebviewContent() {
+		const styleMainUri = vscode.Uri.file(path.join(this._extensionPath, 'media', 'main.css'));
+		const styleMainSrc = this._panel.webview.asWebviewUri(styleMainUri);
+		const scriptMainUri = vscode.Uri.file(path.join(this._extensionPath, 'media', 'main.js'));
+		const scriptMainSrc = this._panel.webview.asWebviewUri(scriptMainUri);
 		return `
 			<!DOCTYPE html>
 			<html lang="en">
@@ -274,7 +282,7 @@ export function activate(context: vscode.ExtensionContext) {
 				</head>
 				<body>
 						<div id="container">
-							<button id="dropdownBtn" aria-expanded="false">Dropdown</button>
+							<input type="text" class="">
 							<div id="actions"></div>
 							<div id="frames"></div>
 							<button id="prevButton">Previous</button>
@@ -285,7 +293,7 @@ export function activate(context: vscode.ExtensionContext) {
 			</html>`;
 	}
 	
-	function getWelcomePage() {
+	private getWelcomePage() {
 		return `
 			<!DOCTYPE html>
 			<html lang="en>
@@ -300,9 +308,6 @@ export function activate(context: vscode.ExtensionContext) {
 				</body>
 			</html>`;
 	}
-}
-
-export function deactivate() {
 }
 
 class RdbgDebugAdapterTrackerFactory implements vscode.DebugAdapterTrackerFactory {

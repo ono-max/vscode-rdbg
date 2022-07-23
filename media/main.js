@@ -43,111 +43,6 @@ const SVG_ICONS = {
     // @ts-ignore
     const vscode = acquireVsCodeApi();
 
-    class DropDownMenu {
-        constructor(curRecords, mixin) {
-            this.recordMap = new Map;
-            this.curRecords = curRecords;
-            Object.assign(this, mixin)
-        }
-    
-       #createRecordMap() {
-            this.curRecords.forEach((record) => {
-                const splits = record.name.split(/#|\./);
-                const key = splits[0]
-                if (this.recordMap.has(key)) {
-                    this.recordMap.get(key).push(record)
-                } else {
-                    this.recordMap.set(key, [record])
-                }
-            })
-        }
-    
-        show() {
-            const dropDownBtn = document.querySelector('#dropdownBtn');
-            if (dropDownBtn === null) return
-            const menu = document.querySelector('.dropDownMenu');
-            if (dropDownBtn.getAttribute('aria-expanded') === 'true') {
-                dropDownBtn.setAttribute('aria-expanded', 'false')
-                if (menu instanceof HTMLElement) {
-                    menu.style.display = 'none';
-                }
-                return;
-            }
-
-            if (menu instanceof HTMLElement) {
-                menu.style.display = 'block';
-                dropDownBtn.setAttribute('aria-expanded', 'true')
-                return;
-            }
-
-            const ul = document.createElement('ul');
-            ul.className = 'dropDownMenu';
-            const record = document.createElement('li');
-            record.classList.add('record', 'selected');
-            const text = document.createTextNode('All Frames');
-            record.appendChild(text);
-            record.addEventListener('click', (e) => {
-                dropDownBtn.setAttribute('aria-expanded', 'false');
-                ul.style.display = 'none';
-                const menu = document.querySelector('.dropDownMenu');
-                if (menu !== null) {
-                    for (let i = 0; i < menu.children.length; i++) {
-                        menu.children[i].classList.remove('selected');
-                    }
-                }
-                if (e.target instanceof HTMLElement) {
-                    e.target.classList.add('selected');
-                    this.rerender(this.curRecords);
-                }
-            })
-            ul.appendChild(record);
-            const filterInput = document.createElement('li');
-            filterInput.className = 'filterInput';
-            const input = document.createElement('input');
-            if (dropDownBtn === null) return
-            dropDownBtn.setAttribute('aria-expanded', 'true');
-            input.type = 'text';
-            input.placeholder = 'Class Name';
-            filterInput.appendChild(input);
-            ul.appendChild(filterInput);
-            
-            this.#createRecordMap();
-            for (let name of this.recordMap.keys()) {
-                const li = document.createElement('li');
-                li.classList.add('record');
-                const text = document.createTextNode(name);
-                li.appendChild(text);
-                li.setAttribute('data-frame-key', name);
-                li.addEventListener('click', (e) => {
-                    dropDownBtn.setAttribute('aria-expanded', 'false');
-                    ul.style.display = 'none';
-                    const menu = document.querySelector('.dropDownMenu');
-                    if (menu !== null) {
-                        for (let i = 0; i < menu.children.length; i++) {
-                            menu.children[i].classList.remove('selected');
-                        }
-                    }
-                    if (e.target instanceof HTMLElement) {
-                        e.target.classList.add('selected');
-                        const key = e.target.dataset.frameKey;
-                        const records = this.recordMap.get(key);
-                        this.activate(records);
-                    }
-                })
-                ul.appendChild(li)
-            }
-            dropDownBtn.insertAdjacentElement('afterend', ul);
-        }
-
-        activate(_records) {
-            throw new Error('should be overridden in mixin')
-        }
-
-        rerender(_records) {
-            throw new Error('should be overridden in mixin')
-        }
-    }
-
     let curRecords = [];
     let logIndex = 0;
     let eventTriggered;
@@ -160,7 +55,6 @@ const SVG_ICONS = {
     if (actionsElement !== null) {
         const ul = document.createElement('ul');
         ul.classList.add('debugButtons')
-        // TODO: Do not insert startRecord because it's not always.
         appendListElement(ul, SVG_ICONS.startRecord, 'recordButton');
         appendListElement(ul, SVG_ICONS.goBackTo, 'goBackToButton');
         appendListElement(ul, SVG_ICONS.goTo, 'goToButton');
@@ -179,7 +73,6 @@ const SVG_ICONS = {
     const goBackToButton = document.querySelector('.goBackToButton')
     const goToButton = document.querySelector('.goToButton')
     const recordButton = document.querySelector('.recordButton')
-    const dropDownBtn = document.querySelector('#dropdownBtn');
     if (nextButton === null || prevButton === null || recordButton === null || goBackToButton === null || goToButton === null) {
         return
     }
@@ -189,12 +82,6 @@ const SVG_ICONS = {
     recordButton.addEventListener('click', startRecord, false)
     goBackToButton.addEventListener('click', goBackToOnce, false)
     goToButton.addEventListener('click', goToOnce, false)
-    dropDownBtn.addEventListener('click', dropDownMenu, false)
-
-    function dropDownMenu() {
-        const menu = new DropDownMenu(curRecords, recordRendererMixin);
-        menu.show()
-    }
 
     disableControlButtons();
 
@@ -207,7 +94,7 @@ const SVG_ICONS = {
         logIndex = logIdx;
         maxPage = Math.ceil(curRecords.length / pageSize);
         const targetRec = findTargetRecords()
-        recordRendererMixin.activate(targetRec);
+        renderer.activate(targetRec);
         disablePageButtons();
         enableAvailCmdButtons();
     };
@@ -240,7 +127,7 @@ const SVG_ICONS = {
             return;
         }
         curPage += 1;
-        recordRendererMixin.rerender();
+        rerender();
     }
 
     function goToPrevPage() {
@@ -248,7 +135,7 @@ const SVG_ICONS = {
             return;
         }
         curPage -= 1
-        recordRendererMixin.rerender();
+        rerender();
     }
 
     // TODO: enableAvailCmdと同じような感じにする
@@ -261,6 +148,40 @@ const SVG_ICONS = {
         if (curPage === 1) {
             prevButton.disabled = true;
         }
+    }
+
+    function enableAvailCmdButtons() {
+        if (recordButton === null || goBackToButton === null || goToButton === null) {
+            return;
+        }
+        recordButton.classList.remove('disabled');
+        if (logIndex !== 0) {
+            goBackToButton.classList.remove('disabled');
+        }
+        const lastRec = curRecords[curRecords.length - 1]
+        if (lastRec.begin_cursor + lastRec.locations.length > logIndex) {
+            goToButton.classList.remove('disabled');
+        }
+    }
+
+    function disableControlButtons() {
+        goBackToButton.classList.add('disabled');
+        goToButton.classList.add('disabled');
+    }
+
+    const space = "\xA0"
+    const rbenvRegexp = /\.rbenv\/versions\/\d\.\d\.\d\/lib\//
+    const gemRegexp = /ruby\/gems\/\d.\d.\d\/gems\//
+
+
+    function rerender() {
+        const end = curRecords.length - (maxPage - curPage) * pageSize;
+        let start = end - pageSize;
+        if (start < 0) {
+            start = 0;
+        }
+        renderer.activate(curRecords.slice(start, end))
+        disablePageButtons();
     }
 
     function startRecord() {
@@ -308,43 +229,27 @@ const SVG_ICONS = {
         })
     }
 
-    function enableAvailCmdButtons() {
-        if (recordButton === null || goBackToButton === null || goToButton === null) {
-            return;
+    class FrameNameFilter {
+        constructor(records) {
+
         }
-        recordButton.classList.remove('disabled');
-        if (logIndex !== 0) {
-            goBackToButton.classList.remove('disabled');
-        }
-        const lastRec = curRecords[curRecords.length - 1]
-        if (lastRec.begin_cursor + lastRec.locations.length > logIndex) {
-            goToButton.classList.remove('disabled');
-        }
+
+        
     }
 
-    function disableControlButtons() {
-        goBackToButton.classList.add('disabled');
-        goToButton.classList.add('disabled');
-    }
+    class recordRenderer {
+        constructor(records) {
+            this.curAllRec = records;
+            this.frameContainer = document.querySelector('#frames');
+            const lastRecord = records[records.length - 1];
+            this.currentStoppedCursor = lastRecord.begin_cursor + lastRecord.locations.length;
+        }
 
-    const space = "\xA0"
-
-    const recordRendererMixin = {
-        rerender() {
-            const end = curRecords.length - (maxPage - curPage) * pageSize;
-            let start = end - pageSize;
-            if (start < 0) {
-                start = 0;
-            }
-            this.activate(curRecords.slice(start, end))
-            disablePageButtons();
-        },
-
-        activate(records) {
-            this.resetView();
-            const tbody = document.querySelector('#frames');
-            const minDepth = this.findMinDepth(records);
-            records.forEach((record) => {
+        activate(targetRec) {
+            this._resetView();
+            
+            const minDepth = this._findMinDepth(targetRec);
+            targetRec.forEach((record) => {
                 const div = document.createElement('div');
                 div.classList.add('frame');
                 div.setAttribute('data-index', record.index);
@@ -357,52 +262,56 @@ const SVG_ICONS = {
                 div.setAttribute('data-depth', depth.toString())
                 const name = document.createTextNode(record.name);
                 div.appendChild(name);
-                const args = this.getArgs(record.args);
+                const args = this._getArgs(record.args);
                 div.appendChild(args);
-                div.addEventListener('click', this.showLocations, false);
-                tbody.appendChild(div);
+                this. _addShowLocationsListener(div);
+                // @ts-ignore
+                this.frameContainer.appendChild(div);
                 record.locations.forEach((loc) => {
                     if (loc.current) {
                         div.click()
                     }
                 })
             })
-        },
+        }
 
-        showLocations() {
-            const result = this.classList.toggle('locationShowed');
-            const collapsible = this.querySelector('.collapsible');
-            if (!result) {
-                collapsible.innerHTML = SVG_ICONS.collapsed;
-                this.nextElementSibling.remove();
-                return;
-            }
-            collapsible.innerHTML = SVG_ICONS.expanded
-            const recordIdx = this.dataset.index;
-            const record = curRecords[recordIdx];
-            let cursor = record.begin_cursor;
-            const parent = document.createElement('div')
-            const depth = parseInt(this.dataset.depth) + 2
-            record.locations.forEach((loc) => {
-                const div = document.createElement('div');
-                div.classList.add('location');
-                div.setAttribute('data-cursor', cursor);
-                const regexp = /\.rbenv\/versions\/\d\.\d\.\d\/lib\//
-                const name = loc.name.replace(regexp, '');
-                div.style.paddingLeft = `${depth}em`;
-                createTableData(name, div);
-                div.addEventListener('click', goHere, false);
-                if (loc.current) {
-                    div.classList.add('stopped');
-                    currentStoppedCursor = cursor;
+        _addShowLocationsListener(element) {
+            const self = this;
+            element.addEventListener('click', function() {
+                const result = this.classList.toggle('locationShowed');
+                const collapsible = this.querySelector('.collapsible');
+                if (!result) {
+                    collapsible.innerHTML = SVG_ICONS.collapsed;
+                    this.nextElementSibling.remove();
+                    return;
                 }
-                parent.appendChild(div);
-                cursor += 1;
+                collapsible.innerHTML = SVG_ICONS.expanded
+                const recordIdx = this.dataset.index;
+                const record = self.curAllRec[recordIdx];
+                let cursor = record.begin_cursor;
+                const parent = document.createElement('div')
+                const depth = parseInt(this.dataset.depth) + 2
+                record.locations.forEach((loc) => {
+                    const div = document.createElement('div');
+                    div.classList.add('location');
+                    div.setAttribute('data-cursor', cursor);
+                    let name = loc.name.replace(rbenvRegexp, '');
+                    name = name.replace(gemRegexp, '');
+                    div.style.paddingLeft = `${depth}em`;
+                    self._createTableData(name, div);
+                    self._addStepListener(div)
+                    if (loc.current) {
+                        div.classList.add('stopped');
+                        self.currentStoppedCursor = cursor;
+                    }
+                    parent.appendChild(div);
+                    cursor += 1;
+                })
+                this.insertAdjacentElement('afterend', parent)
             })
-            this.insertAdjacentElement('afterend', parent)
-        },
+        }
 
-        findMinDepth(records) {
+        _findMinDepth(records) {
             let min = records[0].frame_depth
             for (let i = 1; i < records.length; i++) {
                 const depth = records[i].frame_depth
@@ -411,9 +320,9 @@ const SVG_ICONS = {
                 }
             }
             return min
-        },
+        }
 
-        getArgs(args) {
+        _getArgs(args) {
             const span = document.createElement('span');
             span.classList.add('args')
             if (args === null) return span
@@ -424,43 +333,44 @@ const SVG_ICONS = {
             const text = document.createTextNode(data);
             span.appendChild(text);
             return span
-        },
+        }
 
-        resetView() {
-            const frames = document.querySelector('#frames');
-            frames.innerHTML = '';
+        _resetView() {
+            // @ts-ignore
+            this.frameContainer.innerHTML = '';
+        }
+
+        _createTableData(data, parent) {
+            const text = document.createTextNode(data);
+            parent.appendChild(text);
+        }
+
+        _addStepListener(element) {
+            const self = this;
+            element.addEventListener('click', function() {
+                if (this.classList.contains('stopped') || eventTriggered) {
+                    return;
+                }
+
+                eventTriggered = true;
+        
+                let times = self.currentStoppedCursor - parseInt(this.dataset.cursor);
+                var command;
+                if (times > 0) {
+                    command = 'goBackTo';
+                } else {
+                    command = 'goTo';
+                    times = Math.abs(times);
+                }
+                vscode.postMessage({
+                    command: command,
+                    times: times
+                })
+            })
         }
     }
 
-    function goHere() {
-        if (this.classList.contains('stopped') || eventTriggered) {
-            return;
-        }
-        eventTriggered = true;
-
-        const lastRecord = curRecords[curRecords.length - 1];
-        const currentIndex = currentStoppedCursor || lastRecord.begin_cursor + lastRecord.locations.length;
-
-        let times = currentIndex - parseInt(this.dataset.cursor);
-        var command;
-        if (times > 0) {
-            command = 'goBackTo';
-        } else {
-            command = 'goTo';
-            times = Math.abs(times);
-        }
-        vscode.postMessage({
-            command: command,
-            times: times
-        })
-    }
-
-    function createTableData(data, parent) {
-        const text = document.createTextNode(data);
-        parent.appendChild(text);
-    }
- 
-    let currentStoppedCursor = null;
+    let renderer;
 
     window.addEventListener('message', event => {
         const data = event.data;
@@ -470,33 +380,11 @@ const SVG_ICONS = {
                 const records = data.records;
                 const logIndex = data.logIndex;
                 curPage = 1;
+                renderer = new recordRenderer(records)
                 update(records, logIndex);
                 break;
         };
     });
-
-    document.addEventListener('keydown', bindShortcut, false)
-
-    function bindShortcut(e) {
-        // TODO: こんな感じでreturn
-        // if (e.target.querySelector('.form')) {
-        //     return
-        // }
-        switch (e.key) {
-            case 'ArrowDown':
-                goBackToOnce();
-                break;
-            case 'ArrowUp':
-                goToOnce();
-                break;
-            case 'ArrowRight':
-                goToOnce();
-                break;
-            case 'ArrowLeft':
-                goBackToOnce();
-                break;
-        }
-    }
 
     vscode.postMessage({
         command: 'viewLoaded'
