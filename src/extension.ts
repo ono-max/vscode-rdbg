@@ -117,9 +117,23 @@ export function activate(context: vscode.ExtensionContext) {
 		})
 	);
 
+	// const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+	// statusBar.command = HistoryViewer
+	// statusBar.text = '$(eye) History Viewer'
+	// statusBar.show();
+
+
+	const ObjectVisualizer = 'ObjectVisualizer.start'
+
+	context.subscriptions.push(
+		vscode.commands.registerCommand(ObjectVisualizer, () => {
+			ObjectVisualizerPanel.show(context.extensionPath)
+		})
+	);
+
 	const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-	statusBar.command = HistoryViewer
-	statusBar.text = '$(eye) History Viewer'
+	statusBar.command = ObjectVisualizer
+	statusBar.text = '$(eye) Object Visualizer'
 	statusBar.show();
 }
 
@@ -304,6 +318,120 @@ class HistoryViewerPanel {
 				</head>
 				<body>
 					<h1>Welcome to History Viewer!</h1>
+					<h2>Debugging session is not activated now.</h2>
+				</body>
+			</html>`;
+	}
+}
+
+class ObjectVisualizerPanel {
+	private static currentPanel: vscode.WebviewPanel | undefined;
+	public static show(extensionPath: string) {
+		if (ObjectVisualizerPanel.currentPanel) {
+			const viewColumn = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
+			return ObjectVisualizerPanel.currentPanel.reveal(viewColumn);
+		}
+
+		const panel = new ObjectVisualizerPanel(extensionPath);
+		panel.reveal()
+	}
+
+	private readonly _extensionPath: string;
+	private readonly _panel: vscode.WebviewPanel;
+
+	private disposables: vscode.Disposable[] = [];
+	private visualizedObject: any[] = [];
+
+	private constructor(extensionPath: string) {
+		const currentPanel = vscode.window.createWebviewPanel('rdbg', 'object visualizer', vscode.ViewColumn.Beside, {
+			enableScripts: true,
+			localResourceRoots: [vscode.Uri.file(path.join(extensionPath, 'media'))]
+		});
+		ObjectVisualizerPanel.currentPanel = currentPanel;
+		this._extensionPath = extensionPath;
+		this._panel = currentPanel;
+
+		vscode.debug.onDidStartDebugSession(() => {
+			this.registerDisposable(
+				vscode.debug.onDidReceiveDebugSessionCustomEvent(event => {
+					switch (event.event) {
+						case 'visualizeRequested':
+							this.visualizedObject = event.body.value;
+							this.updateWebview();
+							break;
+					}
+				})
+			)
+			this.startWebview();
+		})
+
+		vscode.debug.onDidTerminateDebugSession(() => {
+			currentPanel.webview.html = this.getWelcomePage();
+			this.disposables.forEach(disp => {
+				disp.dispose();
+			})
+		})
+	}
+
+	private reveal() {
+		const session = vscode.debug.activeDebugSession;
+		if (session === undefined) {
+			this._panel.webview.html = this.getWelcomePage();
+			return
+		}
+
+		this.startWebview()
+	}
+
+	private registerDisposable(disp: vscode.Disposable) {
+		this.disposables.push(disp);
+	}
+
+	private startWebview() {
+		this._panel.webview.html = this.getWebviewContent();
+		this.updateWebview();
+	}
+
+	private updateWebview() {
+		if (!this._panel.visible || this.visualizedObject.length === 0) return
+		this._panel.webview.postMessage({
+			command: 'update',
+			object: this.visualizedObject
+		})
+	}
+	
+	private getWebviewContent() {
+		const styleMainUri = vscode.Uri.file(path.join(this._extensionPath, 'media', 'main.css'));
+		const styleMainSrc = this._panel.webview.asWebviewUri(styleMainUri);
+		const scriptMainUri = vscode.Uri.file(path.join(this._extensionPath, 'media', 'visualizer.js'));
+		const scriptMainSrc = this._panel.webview.asWebviewUri(scriptMainUri);
+		return `
+			<!DOCTYPE html>
+			<html lang="en">
+				<head>
+						<meta charset="UTF-8">
+						<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+						<title>History Viewer</title>
+				</head>
+				<body>
+						<div id="container"></div>
+						<script src=${scriptMainSrc}></script>
+				</body>
+			</html>`;
+	}
+
+	private getWelcomePage() {
+		return `
+			<!DOCTYPE html>
+			<html lang="en>
+				<head>
+					<meta charset="UTF-8">
+					<meta name="viewport" content="width=device-width, initial-scale=1.0">
+					<title>Object Visualizer</title>
+				</head>
+				<body>
+					<h1>Welcome to Object Visualizer!</h1>
 					<h2>Debugging session is not activated now.</h2>
 				</body>
 			</html>`;
