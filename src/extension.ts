@@ -250,7 +250,6 @@ class HistoryViewerPanel {
 			})
 		)
 		this._panel.webview.html = this.getWebviewContent();
-		this.updateWebview();
 	}
 
 	private focusNonWebViewEditor() {
