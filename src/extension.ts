@@ -388,7 +388,6 @@ class ObjectVisualizerPanel {
 
 	private startWebview() {
 		this._panel.webview.html = this.getWebviewContent();
-		this.updateWebview();
 	}
 
 	private updateWebview() {
