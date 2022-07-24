@@ -107,27 +107,9 @@ button:not(:disabled) {
     color: var(--vscode-menu-foreground);
 }
 
-.dropDownMenu {
-    background-color: var(--vscode-menu-background);
-    color: var(--vscode-menu-foreground);
-    max-height: 350px;
-    list-style: none;
-    overflow-x: hidden;
-    overflow-y: auto;
+.filterInput {
+    padding: 5px;
     position: absolute;
-    padding: 0;
-    z-index: 1;
-}
-
-.dropDownMenu > .record {
-    cursor: pointer;
-}
-
-.dropDownMenu > .record:hover {
-    background-color: var(--vscode-inputOption-hoverBackground);
-}
-
-.dropDownMenu > .selected {
-    background-color: var(--vscode-menu-selectionBackground);
-    color: var(--vscode-menu-selectionForeground);
+    color: var(--vscode-input-foreground);
+    background-color: var(--vscode-input-background);
 }

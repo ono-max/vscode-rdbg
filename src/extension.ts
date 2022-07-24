@@ -292,7 +292,7 @@ class HistoryViewerPanel {
 				</body>
 			</html>`;
 	}
-	
+
 	private getWelcomePage() {
 		return `
 			<!DOCTYPE html>

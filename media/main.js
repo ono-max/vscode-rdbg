@@ -229,12 +229,30 @@ const SVG_ICONS = {
         })
     }
 
-    class FrameNameFilter {
-        constructor(records) {
-
+    class frameNameFilter {
+        constructor(records, renderer) {
+            this.filterInput = document.querySelector(".filterInput");
+            this.curAllRec = records;
+            this.renderer = renderer
         }
 
-        
+        activate() {
+            const self = this;
+            if (!(this.filterInput instanceof HTMLInputElement)) return
+            this.filterInput.addEventListener('keyup', function() {
+                let records = []
+                if (this.value === '') {
+                    records = findTargetRecords();
+                } else {
+                    for (let i = 0; i < self.curAllRec.length; i++) {
+                        if (self.curAllRec[i].name.toLowerCase().indexOf(this.value.toLowerCase()) === -1) continue
+    
+                        records.push(self.curAllRec[i])
+                    }
+                }
+                self.renderer.activate(records);
+            })
+        }
     }
 
     class recordRenderer {
@@ -380,7 +398,9 @@ const SVG_ICONS = {
                 const records = data.records;
                 const logIndex = data.logIndex;
                 curPage = 1;
-                renderer = new recordRenderer(records)
+                renderer = new recordRenderer(records);
+                const filter = new frameNameFilter(records, renderer);
+                filter.activate();
                 update(records, logIndex);
                 break;
         };
