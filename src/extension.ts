@@ -169,22 +169,23 @@ class HistoryViewerPanel {
 		this._extensionPath = extensionPath;
 		this._panel = currentPanel;
 
+		this.registerDisposable(
+			vscode.debug.onDidReceiveDebugSessionCustomEvent(event => {
+				switch (event.event) {
+					case 'recordsUpdated':
+						this.partialTraces = this.partialTraces.concat(event.body.records);
+						if (event.body.fin) {
+							this.logIndex = event.body.log_index;
+							this.completeTraces = this.partialTraces;
+							this.updateWebview();
+							this.partialTraces = []
+						}
+						break;
+				}
+			})
+		)
+
 		vscode.debug.onDidStartDebugSession(() => {
-			this.registerDisposable(
-				vscode.debug.onDidReceiveDebugSessionCustomEvent(event => {
-					switch (event.event) {
-						case 'recordsUpdated':
-							this.partialTraces = this.partialTraces.concat(event.body.records);
-							if (event.body.fin) {
-								this.logIndex = event.body.log_index;
-								this.completeTraces = this.partialTraces;
-								this.updateWebview();
-								this.partialTraces = []
-							}
-							break;
-					}
-				})
-			)
 			this.startWebView();
 		})
 
