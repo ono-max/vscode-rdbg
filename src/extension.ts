@@ -410,10 +410,23 @@ class ObjectVisualizerPanel {
 						<meta charset="UTF-8">
 						<meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-						<title>History Viewer</title>
+						<title>Object Visualizer</title>
+						<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+						<script src="https://unpkg.com/gridjs/dist/gridjs.umd.js"></script>
+						<link href="https://unpkg.com/gridjs/dist/theme/mermaid.min.css" rel="stylesheet">
+
 				</head>
 				<body>
-						<div id="container"></div>
+						<select name="visualization" id="visualization" disabled>
+							<option value="table">Table</option>
+							<option value="bar-chart">Bar Chart</option>
+						</select>
+						<div id="container">
+							<div class="tableView"></div>
+							<div>
+								<canvas id="myChart"></canvas>
+							</div>
+						</div>
 						<script src=${scriptMainSrc}></script>
 				</body>
 			</html>`;

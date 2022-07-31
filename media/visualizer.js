@@ -6,31 +6,80 @@
 
     const container = document.querySelector('#container');
 
-    function update(object) {
-        const table = document.createElement('table');
-        const keys = Object.keys(object[0])
-        const headers = document.createElement('tr');
-        keys.forEach((key) => {
-            const th = document.createElement('th');
-            const text = document.createTextNode(key)
-            th.appendChild(text);
-            headers.appendChild(th);
-        })
+    let visualizedObject;
+    let yAxisKeys = [];
 
-        table.appendChild(headers)
+    const visualization = document.querySelector('#visualization');
 
-        object.forEach((v) => {
-            const tr = document.createElement('tr');
-            Object.values(v).forEach((value) => {
-                const td = document.createElement('td');
-                const text = document.createTextNode(value)
-                td.appendChild(text);
-                tr.appendChild(td);
-            })
-            table.appendChild(tr);
+    const tableView = document.querySelector('.tableView')
+
+    let uid;
+
+    function update(objects) {
+        if (visualization instanceof HTMLSelectElement) {
+            visualization.disabled = false;
+        }
+        new gridjs.Grid({
+            pagination: {
+                limit: 50
+              },
+              sort: true,
+              search: true,
+            data: objects,
+          }).render(tableView);
+        container?.appendChild(tableView);
+        uid = new Date().getTime().toString()
+        objects.forEach((obj, idx) => {
+            console.log(obj)
+            if (obj.get('id') !== undefined) {
+                obj.set(uid, obj.get('id'))
+            } else {
+                obj.set(uid, idx.toString())
+            }
         })
-        container?.appendChild(table)
+        visualizedObject = objects;
     };
+
+    let myChart;
+
+    document.querySelector('#visualization').addEventListener('change', (e)=> {
+        if (e.target.value === 'bar-chart') {
+          document.querySelector(".tableView").style.display = 'none';
+          if (myChart) {
+            document.getElementById('myChart').style.display = 'block';
+            return;
+          }
+          let datasets = []
+          yAxisKeys.forEach((key) => {
+            const dataset = {
+                label: key,
+                data: visualizedObject,
+                parsing: {
+                    yAxisKeys: key,
+                }
+            }
+            datasets.push(dataset);
+          })
+          const cfg = {
+              type: 'bar',
+              data: {
+                  datasets: datasets,
+              },
+              options: {
+                parsing: {
+                    xAxisKey: uid,
+                }
+              }
+          };
+          myChart = new Chart(
+          document.getElementById('myChart'),
+          cfg
+        );
+        } else {
+          document.querySelector(".tableView").style.display = 'block'
+          document.getElementById('myChart').style.display = 'none';
+        }
+      })
 
     window.addEventListener('message', event => {
         const data = event.data;
@@ -40,8 +89,4 @@
                 break;
         };
     });
-
-    // vscode.postMessage({
-    //     command: 'viewLoaded'
-    // })
 }());
