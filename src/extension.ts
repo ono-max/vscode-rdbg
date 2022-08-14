@@ -318,13 +318,6 @@ class HistoryViewerPanel {
 						<title>History Viewer</title>
 				</head>
 				<body>
-						<div id="container">
-							<input type="text" class="filterInput">
-							<div id="actions"></div>
-							<div id="frames"></div>
-							<button id="prevButton">Previous</button>
-							<button id="nextButton">Next Page</button>
-						</div>
 						<script src=${scriptMainSrc}></script>
 				</body>
 			</html>`;

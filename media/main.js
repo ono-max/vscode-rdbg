@@ -51,19 +51,19 @@ const SVG_ICONS = {
     const rbenvRegexp = /\.rbenv\/versions\/\d\.\d\.\d\/lib\//
     const gemRegexp = /ruby\/gems\/\d.\d.\d\/gems\//
 
-    class EventFactory {
+    class EventListenerFactory {
         /**
-         * @type {EventFactory}
+         * @type {EventListenerFactory}
          */
         static historyView;
 
-        static async activate() {
-            if (EventFactory.historyView) {
-                EventFactory.historyView.update();
+        static async activate(records, logIdx, recRenderer, viewRenderer) {
+            if (EventListenerFactory.historyView) {
+                EventListenerFactory.historyView.update(records, logIdx);
                 return
             }
-            EventFactory.historyView = new EventFactory
-            EventFactory.historyView.update();
+            EventListenerFactory.historyView = new EventListenerFactory(records, logIdx, recRenderer, viewRenderer)
+            EventListenerFactory.historyView.update(records, logIdx);
         }
 
         curPage = 1;
@@ -89,28 +89,11 @@ const SVG_ICONS = {
              * @type {HistoryViewRenderer}
              */
             this.viewRendrer = viewRenderer;
-            this._addRecordListener();
             this._addStepBackListener();
             this._addStepInListener();
             this._addPrevPageListener();
             this._addNextPageListener();
             this._addFilterListener();
-        }
-
-        _addRecordListener() {
-            this.viewRendrer.recordButton.addEventListener('click', function() {
-                if (this.querySelector('.start') !== null) {
-                    this.innerHTML = SVG_ICONS.stopRecord;
-                    vscode.postMessage({
-                        command: 'startRecord'
-                    })
-                } else {
-                    this.innerHTML = SVG_ICONS.startRecord;
-                    vscode.postMessage({
-                        command: 'stopRecord'
-                    })
-                }
-            })
         }
 
         _addStepBackListener() {
@@ -337,6 +320,19 @@ const SVG_ICONS = {
             const recordBtn = document.createElement('li');
             recordBtn.innerHTML = SVG_ICONS.startRecord;
             recordBtn.className = 'recordButton';
+            recordBtn.addEventListener('click', function() {
+                if (this.querySelector('.start') !== null) {
+                    this.innerHTML = SVG_ICONS.stopRecord;
+                    vscode.postMessage({
+                        command: 'startRecord'
+                    })
+                } else {
+                    this.innerHTML = SVG_ICONS.startRecord;
+                    vscode.postMessage({
+                        command: 'stopRecord'
+                    })
+                }
+            })
             return recordBtn;
         }
 
@@ -356,11 +352,15 @@ const SVG_ICONS = {
 
         _renderPrevPageButton() {
             const prevBtn = document.createElement('button');
+            prevBtn.innerText = 'Previous';
+            prevBtn.className = 'prevPageButton'
             return prevBtn;
         }
 
         _renderNextPageButton() {
             const nextBtn = document.createElement('button');
+            nextBtn.innerText = 'Next';
+            nextBtn.className = 'nextPageButton'
             return nextBtn;
         }
 
@@ -381,14 +381,17 @@ const SVG_ICONS = {
             ul.appendChild(this.#goBackToBtn);
             ul.appendChild(this.#goToBtn);
             recordView.appendChild(ul);
+            recordView.appendChild(this.#input);
             const frames = document.createElement('div');
             frames.className = 'frames';
             recordView.appendChild(frames);
-            recordView.appendChild(this.#input);
+            const pageBtns = document.createElement('div');
+            pageBtns.className = 'PageButtons';
             this.#prevPageBtn.style.display = 'none';
             this.#nextPageBtn.style.display = 'none';
-            recordView.appendChild(this.#prevPageBtn);
-            recordView.appendChild(this.#nextPageBtn);
+            pageBtns.appendChild(this.prevPageButton);
+            pageBtns.appendChild(this.#nextPageBtn)
+            recordView.appendChild(pageBtns);
             document.body.appendChild(recordView);
         }
     }
@@ -533,7 +536,8 @@ const SVG_ICONS = {
         switch (data.command) {
             case 'update':
                 eventTriggered = false;
-                new EventFactory(data.records, data.logIndex, new recordRenderer(data.records), viewRenderer)
+                const recRenderer = new recordRenderer(data.records);
+                EventListenerFactory.activate(data.records, data.logIndex, recRenderer, viewRenderer)
                 break;
         };
     });

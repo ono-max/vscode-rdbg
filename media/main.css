@@ -112,4 +112,20 @@ button:not(:disabled) {
     position: absolute;
     color: var(--vscode-input-foreground);
     background-color: var(--vscode-input-background);
+    top: 13px;
+}
+
+.prevPageButton {
+    color: var(--vscode-button-secondaryForeground);
+    background-color: var(--vscode-button-secondaryBackground);
+}
+
+.nextPageButton {
+    color: var(--vscode-button-secondaryForeground);
+    background-color: var(--vscode-button-secondaryBackground);
+}
+
+.pageButtons {
+    display: flex;
+    justify-content: space-evenly;
 }
