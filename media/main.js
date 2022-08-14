@@ -43,222 +43,360 @@ const SVG_ICONS = {
     // @ts-ignore
     const vscode = acquireVsCodeApi();
 
-    let curRecords = [];
-    let logIndex = 0;
     let eventTriggered;
-    let maxPage;
 
     const pageSize = 50;
-    let curPage = 1;
-
-    const actionsElement = document.querySelector('#actions');
-    if (actionsElement !== null) {
-        const ul = document.createElement('ul');
-        ul.classList.add('debugButtons')
-        appendListElement(ul, SVG_ICONS.startRecord, 'recordButton');
-        appendListElement(ul, SVG_ICONS.goBackTo, 'goBackToButton');
-        appendListElement(ul, SVG_ICONS.goTo, 'goToButton');
-        actionsElement.appendChild(ul)
-    }
-
-    function appendListElement(parent, text, className) {
-        const li = document.createElement('li');
-        li.innerHTML = text;
-        li.classList.add(className);
-        parent.appendChild(li)
-    }
-
-    const nextButton = document.querySelector('#nextButton')
-    const prevButton = document.querySelector('#prevButton')
-    const goBackToButton = document.querySelector('.goBackToButton')
-    const goToButton = document.querySelector('.goToButton')
-    const recordButton = document.querySelector('.recordButton')
-    if (nextButton === null || prevButton === null || recordButton === null || goBackToButton === null || goToButton === null) {
-        return
-    }
-
-    nextButton.addEventListener('click', goToNextPage, false)
-    prevButton.addEventListener('click', goToPrevPage, false)
-    recordButton.addEventListener('click', startRecord, false)
-    goBackToButton.addEventListener('click', goBackToOnce, false)
-    goToButton.addEventListener('click', goToOnce, false)
-
-    disableControlButtons();
-
-    function update(records, logIdx) {
-        if (recordButton === null) {
-            return;
-        }
-        recordButton.innerHTML = SVG_ICONS.stopRecord;
-        curRecords = records;
-        logIndex = logIdx;
-        maxPage = Math.ceil(curRecords.length / pageSize);
-        const targetRec = findTargetRecords()
-        renderer.activate(targetRec);
-        disablePageButtons();
-        enableAvailCmdButtons();
-    };
-
-    function findTargetRecords() {
-        const lastRec = curRecords[curRecords.length - 1];
-        curPage = maxPage;
-        if (logIndex > lastRec.begin_cursor + lastRec.locations.length) {
-            return curRecords.slice(-pageSize)
-        }
-        let remainRec = curRecords
-        while (remainRec.length > 1) {
-            const records = remainRec.slice(-pageSize)
-            const firstRec = records[0];
-            const lastRec = records[records.length - 1];
-            const start = firstRec.begin_cursor;
-            const end = lastRec.begin_cursor + lastRec.locations.length;
-            if (logIndex >= start && logIndex <= end) {
-                return records
-            }
-
-            curPage -= 1
-            remainRec = curRecords.slice(0, -pageSize)
-        }
-        return remainRec
-    }
-
-    function goToNextPage() {
-        if (curPage === maxPage) {
-            return;
-        }
-        curPage += 1;
-        rerender();
-    }
-
-    function goToPrevPage() {
-        if (curPage < 2) {
-            return;
-        }
-        curPage -= 1
-        rerender();
-    }
-
-    // TODO: enableAvailCmdと同じような感じにする
-    function disablePageButtons() {
-        prevButton.disabled = false;
-        nextButton.disabled = false;
-        if (curPage === maxPage) {
-            nextButton.disabled = true;
-        }
-        if (curPage === 1) {
-            prevButton.disabled = true;
-        }
-    }
-
-    function enableAvailCmdButtons() {
-        if (recordButton === null || goBackToButton === null || goToButton === null) {
-            return;
-        }
-        recordButton.classList.remove('disabled');
-        if (logIndex !== 0) {
-            goBackToButton.classList.remove('disabled');
-        }
-        const lastRec = curRecords[curRecords.length - 1]
-        if (lastRec.begin_cursor + lastRec.locations.length > logIndex) {
-            goToButton.classList.remove('disabled');
-        }
-    }
-
-    function disableControlButtons() {
-        goBackToButton.classList.add('disabled');
-        goToButton.classList.add('disabled');
-    }
 
     const space = "\xA0"
     const rbenvRegexp = /\.rbenv\/versions\/\d\.\d\.\d\/lib\//
     const gemRegexp = /ruby\/gems\/\d.\d.\d\/gems\//
 
+    class EventFactory {
+        /**
+         * @type {EventFactory}
+         */
+        static historyView;
 
-    function rerender() {
-        const end = curRecords.length - (maxPage - curPage) * pageSize;
-        let start = end - pageSize;
-        if (start < 0) {
-            start = 0;
-        }
-        renderer.activate(curRecords.slice(start, end))
-        disablePageButtons();
-    }
-
-    function startRecord() {
-        if (this.querySelector('.start') !== null) {
-            this.innerHTML = SVG_ICONS.stopRecord;
-            vscode.postMessage({
-                command: 'startRecord'
-            })
-        } else {
-            this.innerHTML = SVG_ICONS.startRecord;
-            vscode.postMessage({
-                command: 'stopRecord'
-            })
-        }
-    }
-
-    function goBackToOnce() {
-        if (recordButton.classList.contains('disabled')) {
-            return
-        }
-        if (logIndex === 0) {
-            return
-        }
-        disableControlButtons();
-        recordButton.classList.add('disabled');
-        vscode.postMessage({
-            command: 'goBackTo',
-            times: 1
-        })
-    }
-
-    function goToOnce() {
-        if (recordButton.classList.contains('disabled')) {
-            return
-        }
-        const lastRec = curRecords[curRecords.length - 1]
-        if (lastRec.begin_cursor + lastRec.locations.length <= logIndex) {
-            return
-        }
-        disableControlButtons();
-        recordButton.classList.add('disabled');
-        vscode.postMessage({
-            command: 'goTo',
-            times: 1
-        })
-    }
-
-    class frameNameFilter {
-        constructor(records, renderer) {
-            this.filterInput = document.querySelector(".filterInput");
-            this.curAllRec = records;
-            this.renderer = renderer
+        static async activate() {
+            if (EventFactory.historyView) {
+                EventFactory.historyView.update();
+                return
+            }
+            EventFactory.historyView = new EventFactory
+            EventFactory.historyView.update();
         }
 
-        activate() {
-            const self = this;
-            if (!(this.filterInput instanceof HTMLInputElement)) return
-            this.filterInput.addEventListener('keyup', function() {
-                let records = []
-                if (this.value === '') {
-                    records = findTargetRecords();
+        curPage = 1;
+        maxPage = 1;
+
+        /**
+         * @param {any} [records]
+         * @param {any} [logIdx]
+         * @param {recordRenderer} [recRenderer]
+         * @param {HistoryViewRenderer} [viewRenderer]
+         */
+        constructor(records, logIdx, recRenderer, viewRenderer) {
+            if (viewRenderer === undefined || recRenderer === undefined) {
+                return;
+            }
+            this.curAllRecs = records;
+            this.logIndex = logIdx;
+            /**
+             * @type {recordRenderer}
+             */
+            this.recRenderer = recRenderer;
+            /**
+             * @type {HistoryViewRenderer}
+             */
+            this.viewRendrer = viewRenderer;
+            this._addRecordListener();
+            this._addStepBackListener();
+            this._addStepInListener();
+            this._addPrevPageListener();
+            this._addNextPageListener();
+            this._addFilterListener();
+        }
+
+        _addRecordListener() {
+            this.viewRendrer.recordButton.addEventListener('click', function() {
+                if (this.querySelector('.start') !== null) {
+                    this.innerHTML = SVG_ICONS.stopRecord;
+                    vscode.postMessage({
+                        command: 'startRecord'
+                    })
                 } else {
-                    for (let i = 0; i < self.curAllRec.length; i++) {
-                        if (self.curAllRec[i].name.toLowerCase().indexOf(this.value.toLowerCase()) === -1) continue
+                    this.innerHTML = SVG_ICONS.startRecord;
+                    vscode.postMessage({
+                        command: 'stopRecord'
+                    })
+                }
+            })
+        }
+
+        _addStepBackListener() {
+            const goBackToBtn = document.createElement('li');
+            goBackToBtn.innerHTML = SVG_ICONS.goBackTo;
+            goBackToBtn.className = 'goBackToButton';
+            const self = this;
+            this.viewRendrer.goBackToButton.addEventListener('click', function() {
+                if (self.viewRendrer.recordButton.classList.contains('disabled')) {
+                    return
+                }
+                const lastRec = self.curAllRecs[self.curAllRecs.length - 1]
+                if (lastRec.begin_cursor + lastRec.locations.length <= self.logIndex) {
+                    return
+                }
+                self.viewRendrer.disableControlButtons();
+                self.viewRendrer.recordButton.classList.add('disabled');
+                vscode.postMessage({
+                    command: 'goTo',
+                    times: 1
+                })
+            })
+            return goBackToBtn
+        }
+
+        _addStepInListener() {
+            const goToBtn = document.createElement('li');
+            goToBtn.innerHTML = SVG_ICONS.goTo;
+            goToBtn.className = 'goToButton';
+            const self = this;
+            goToBtn.addEventListener('click', function() {
+                if (self.viewRendrer.recordButton.classList.contains('disabled')) {
+                    return
+                }
+                const lastRec = self.curAllRecs[self.curAllRecs.length - 1]
+                if (lastRec.begin_cursor + lastRec.locations.length <= self.logIndex) {
+                    return
+                }
+                self.viewRendrer.disableControlButtons();
+                self.viewRendrer.recordButton.classList.add('disabled');
+                vscode.postMessage({
+                    command: 'goTo',
+                    times: 1
+                })
+            })
+            return goToBtn;
+        }
+
+        _addPrevPageListener() {
+            const prevBtn = document.createElement('button');
+            const self = this;
+            prevBtn.addEventListener('click', function() {
+                if (self.curPage < 2) {
+                    return;
+                }
+                self.curPage -= 1
+                const end = self.curAllRecs.length - (self.maxPage - self.curPage) * pageSize;
+                let start = end - pageSize;
+                if (start < 0) {
+                    start = 0;
+                }
+                self.recRenderer.activate(self.curAllRecs.slice(start, end))
+                // TODO: enableAvailCmdと同じような感じにする
+                self.viewRendrer.prevPageButton.disabled = false;
+                self.viewRendrer.nextPageButton.disabled = false;
+                if (self.curPage === self.maxPage) {
+                    self.viewRendrer.prevPageButton.disabled = true;
+                }
+                if (self.curPage === 1) {
+                    self.viewRendrer.prevPageButton.disabled = true;
+                }
+            })
+            return prevBtn;
+        }
+
+        _addNextPageListener() {
+            const nextBtn = document.createElement('button');
+            const self = this;
+            nextBtn.addEventListener('click', function() {
+                if (self.curPage === self.maxPage) {
+                    return;
+                }
+                self.curPage += 1;
+                const end = self.curAllRecs.length - (self.maxPage - self.curPage) * pageSize;
+                let start = end - pageSize;
+                if (start < 0) {
+                    start = 0;
+                }
+                self.recRenderer.activate(self.curAllRecs.slice(start, end))
+                self.viewRendrer.prevPageButton.disabled = false;
+                self.viewRendrer.prevPageButton.disabled = false;
+                if (self.curPage === self.maxPage) {
+                    self.viewRendrer.prevPageButton.disabled = true;
+                }
+                if (self.curPage === 1) {
+                    self.viewRendrer.prevPageButton.disabled = true;
+                }
+            })
+            return nextBtn;
+        }
+
+        _addFilterListener() {
+            const input = document.createElement('input');
+            input.addEventListener('input', (e) => {
+                if (!(e.target instanceof HTMLInputElement)) return;
+
+                let records = []
+                if (e.target.value === '') {
+                    records = this._findTargetRecords();
+                } else {
+                    for (let i = 0; i < this.curAllRecs.length; i++) {
+                        if (this.curAllRecs[i].name.toLowerCase().indexOf(e.target.value.toLowerCase()) === -1) continue
     
-                        records.push(self.curAllRec[i])
+                        records.push(this.curAllRecs[i])
                     }
                 }
-                self.renderer.activate(records);
+                this.recRenderer.activate(records);
             })
+            return input;
+        }
+
+        async update(records, logIdx) {
+            this.curAllRecs = records;
+            this.logIndex = logIdx;
+            this.viewRendrer.recordButton.innerHTML = SVG_ICONS.stopRecord;
+            this.maxPage = Math.ceil(this.curAllRecs.length / pageSize);
+            const targetRec = this._findTargetRecords()
+            this.recRenderer.activate(targetRec);
+            this.viewRendrer.prevPageButton.style.display = 'block';
+            this.viewRendrer.nextPageButton.style.display = 'block';
+            this.viewRendrer.prevPageButton.disabled = false;
+            this.viewRendrer.nextPageButton.disabled = false;
+            if (this.curPage === this.maxPage) {
+                this.viewRendrer.nextPageButton.disabled = true;
+            }
+            if (this.curPage === 1) {
+                this.viewRendrer.prevPageButton.disabled = true;
+            }
+            this._enableAvailCmdButtons();
+        };
+
+        _enableAvailCmdButtons() {
+            this.viewRendrer.recordButton.classList.remove('disabled');
+            if (this.logIndex !== 0) {
+                this.viewRendrer.goBackToButton.classList.remove('disabled');
+            }
+            const lastRec = this.curAllRecs[this.curAllRecs.length - 1]
+            if (lastRec.begin_cursor + lastRec.locations.length > this.logIndex) {
+                this.viewRendrer.goToButton.classList.remove('disabled');
+            }
+        }
+
+        _findTargetRecords() {
+            const lastRec = this.curAllRecs[this.curAllRecs.length - 1];
+            this.curPage = this.maxPage;
+            if (this.logIndex > lastRec.begin_cursor + lastRec.locations.length) {
+                return this.curAllRecs.slice(-pageSize)
+            }
+            let remainRec = this.curAllRecs
+            while (remainRec.length > 1) {
+                const records = remainRec.slice(-pageSize)
+                const firstRec = records[0];
+                const lastRec = records[records.length - 1];
+                const start = firstRec.begin_cursor;
+                const end = lastRec.begin_cursor + lastRec.locations.length;
+                if (this.logIndex >= start && this.logIndex <= end) {
+                    return records
+                }
+    
+                this.curPage -= 1
+                remainRec = this.curAllRecs.slice(0, -pageSize)
+            }
+            return remainRec
+        }
+    }
+
+    class HistoryViewRenderer {
+        #recordBtn;
+        #goBackToBtn;
+        #goToBtn;
+        #prevPageBtn;
+        #nextPageBtn;
+        #input;
+        constructor() {
+            this.#recordBtn = this._renderRecordButton();
+            this.#goBackToBtn = this._renderStepBackButton();
+            this.#goToBtn = this._renderStepInButton();
+            this.#prevPageBtn = this._renderPrevPageButton();
+            this.#nextPageBtn = this._renderNextPageButton();
+            this.#input = this._renderFilterInput();
+            this._initializeView();
+        }
+
+        get recordButton() {
+            return this.#recordBtn;
+        }
+
+        get goBackToButton() {
+            return this.#goBackToBtn;
+        }
+
+        get goToButton() {
+            return this.#goToBtn;
+        }
+
+        get prevPageButton() {
+            return this.#prevPageBtn;
+        }
+
+        get nextPageButton() {
+            return this.#nextPageBtn;
+        }
+
+        get filterInput() {
+            return this.#input;
+        }
+
+        disableControlButtons() {
+            this.#goBackToBtn.classList.add('disabled');
+            this.#goToBtn.classList.add('disabled');
+        }    
+
+        _renderRecordButton() {
+            const recordBtn = document.createElement('li');
+            recordBtn.innerHTML = SVG_ICONS.startRecord;
+            recordBtn.className = 'recordButton';
+            return recordBtn;
+        }
+
+        _renderStepInButton() {
+            const goToBtn = document.createElement('li');
+            goToBtn.innerHTML = SVG_ICONS.goTo;
+            goToBtn.className = 'goToButton';
+            return goToBtn;
+        }
+
+        _renderStepBackButton() {
+            const goBackToBtn = document.createElement('li');
+            goBackToBtn.innerHTML = SVG_ICONS.goBackTo;
+            goBackToBtn.className = 'goBackToButton';
+            return goBackToBtn;
+        }
+
+        _renderPrevPageButton() {
+            const prevBtn = document.createElement('button');
+            return prevBtn;
+        }
+
+        _renderNextPageButton() {
+            const nextBtn = document.createElement('button');
+            return nextBtn;
+        }
+
+        _renderFilterInput() {
+            const input = document.createElement('input');
+            input.className = 'filterInput'
+            return input;
+        }
+
+        _initializeView() {
+            const recordView = document.createElement('div');
+            recordView.className = 'recordView';
+            const ul = document.createElement('ul');
+            ul.classList.add('debugButtons');
+            this.#goBackToBtn.classList.add('disabled');
+            this.#goToBtn.classList.add('disabled');
+            ul.appendChild(this.#recordBtn);
+            ul.appendChild(this.#goBackToBtn);
+            ul.appendChild(this.#goToBtn);
+            recordView.appendChild(ul);
+            const frames = document.createElement('div');
+            frames.className = 'frames';
+            recordView.appendChild(frames);
+            recordView.appendChild(this.#input);
+            this.#prevPageBtn.style.display = 'none';
+            this.#nextPageBtn.style.display = 'none';
+            recordView.appendChild(this.#prevPageBtn);
+            recordView.appendChild(this.#nextPageBtn);
+            document.body.appendChild(recordView);
         }
     }
 
     class recordRenderer {
         constructor(records) {
             this.curAllRec = records;
-            this.frameContainer = document.querySelector('#frames');
+            this.frameContainer = document.querySelector('.frames');
             const lastRecord = records[records.length - 1];
             this.currentStoppedCursor = lastRecord.begin_cursor + lastRecord.locations.length;
         }
@@ -388,25 +526,19 @@ const SVG_ICONS = {
         }
     }
 
-    let renderer;
+    const viewRenderer = new HistoryViewRenderer()
 
     window.addEventListener('message', event => {
         const data = event.data;
         switch (data.command) {
             case 'update':
                 eventTriggered = false;
-                const records = data.records;
-                const logIndex = data.logIndex;
-                curPage = 1;
-                renderer = new recordRenderer(records);
-                const filter = new frameNameFilter(records, renderer);
-                filter.activate();
-                update(records, logIndex);
+                new EventFactory(data.records, data.logIndex, new recordRenderer(data.records), viewRenderer)
                 break;
         };
     });
 
     vscode.postMessage({
-        command: 'viewLoaded'
+        command: 'viewLoaded' 
     })
 }());

@@ -1,0 +1,43 @@
+.tableView table {
+    border-collapse: collapse;
+}
+
+.tableView thead {
+    background-color: var(--vscode-keybindingTable-headerBackground);
+}
+
+.tableView tbody {
+    white-space: nowrap;
+    background-color: var(--vscode-keybindingTable-rowsBackground);
+}
+
+.tableView th {
+    border: solid 1px rgba(125, 125, 125, 0.5);
+}
+
+.tableView th, td {
+    padding: 5px 10px;
+}
+
+.tableView ul {
+    list-style: none;
+    display: flex;
+    justify-content: space-evenly;
+}
+
+.tableView li {
+    cursor: pointer;
+}
+
+.tableView li:hover {
+    background-color: var(--vscode-button-hoverBackground);
+}
+
+.replInput {
+    color: var(--vscode-input-foreground);
+    background-color: var(--vscode-input-background);
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size);
+    font-weight: var(--vscode-editor-font-weight);
+    padding: 5px;
+}

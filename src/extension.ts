@@ -69,6 +69,10 @@ function export_breakpoints(context: vscode.ExtensionContext) {
 	}
 }
 
+const rdbgInspectorCmd = 'rdbgInspector.start';
+const threadIdKey = 'threadId';
+const variablesReferenceKey = 'variablesReference';
+
 export function activate(context: vscode.ExtensionContext) {
 	outputChannel = vscode.window.createOutputChannel('rdbg');
 
@@ -109,35 +113,54 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
-	const HistoryViewer = 'HistoryViewer.start'
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand(HistoryViewer, () => {
-			HistoryViewerPanel.show(context.extensionPath)
-		})
-	);
-
-	// const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-	// statusBar.command = HistoryViewer
-	// statusBar.text = '$(eye) History Viewer'
-	// statusBar.show();
-
-
-	const ObjectVisualizer = 'ObjectVisualizer.start'
-
-	context.subscriptions.push(
-		vscode.commands.registerCommand(ObjectVisualizer, () => {
-			ObjectVisualizerPanel.show(context.extensionPath)
-		})
-	);
-
 	const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-	statusBar.command = ObjectVisualizer
-	statusBar.text = '$(eye) Object Visualizer'
-	statusBar.show();
+	statusBar.command = rdbgInspectorCmd;
+	statusBar.text = '$(search) rdbg inspector';
+
+	const frameIdGetter = new FrameIdGetter
+
+	const disp = [
+		vscode.debug.onDidStartDebugSession(() => {
+			statusBar.show();
+		}),
+
+		vscode.commands.registerCommand(rdbgInspectorCmd, () => {
+			ObjectVisualizerPanel.show(context.extensionPath, frameIdGetter)
+		}),
+
+		vscode.window.registerUriHandler({
+			handleUri(uri: vscode.Uri) {
+				const params = new URLSearchParams(uri.query);
+				const variablesReference = params.get(variablesReferenceKey);
+				if (variablesReference === null) {
+					console.error('variablesReference is not found')
+					return;
+				}
+				ObjectVisualizerPanel.show(context.extensionPath, frameIdGetter, parseInt(variablesReference));
+			}
+		}),
+
+		vscode.debug.onDidTerminateDebugSession(() => {
+			statusBar.hide();
+		}),
+
+		vscode.languages.registerInlineValuesProvider('*', frameIdGetter)
+	];
+
+	context.subscriptions.concat(
+		disp
+	);
 }
 
 export function deactivate() {
+}
+
+class FrameIdGetter implements vscode.InlineValuesProvider,curFrameIdGetter {
+	frameId: number = 0;
+	provideInlineValues(document: vscode.TextDocument, viewPort: vscode.Range, context: vscode.InlineValueContext, token: vscode.CancellationToken): vscode.ProviderResult<vscode.InlineValue[]> {
+		this.frameId = context.frameId;
+		return []
+	}
 }
 
 class HistoryViewerPanel {
@@ -324,25 +347,54 @@ class HistoryViewerPanel {
 	}
 }
 
+interface curFrameIdGetter {
+	readonly frameId: number;
+}
+
 class ObjectVisualizerPanel {
 	private static currentPanel: vscode.WebviewPanel | undefined;
-	public static show(extensionPath: string) {
+	public static async show(extensionPath: string, frameIdGetter: curFrameIdGetter, variablesReference?: number) {
 		if (ObjectVisualizerPanel.currentPanel) {
 			const viewColumn = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
 			return ObjectVisualizerPanel.currentPanel.reveal(viewColumn);
 		}
 
-		const panel = new ObjectVisualizerPanel(extensionPath);
-		panel.reveal()
+		this.waitSession().then((session) => {
+			const panel = new ObjectVisualizerPanel(extensionPath, frameIdGetter, session, variablesReference);
+			panel.reveal();
+		})
+		.catch((e) => {
+			console.error(e)
+		});
+	}
+
+	private static waitSession(): Promise<vscode.DebugSession> {
+		let counter: number = 0
+		return new Promise((resolve, reject) => {
+			const id = setInterval(() => {
+				if (counter > 5) {
+					clearInterval(id);
+					reject(new Error("failed to wait session"))
+				}
+				if (vscode.debug.activeDebugSession !== undefined) {
+					clearInterval(id);
+					resolve(vscode.debug.activeDebugSession);
+				}
+				counter += 1
+			}, 1000);
+		})
 	}
 
 	private readonly _extensionPath: string;
 	private readonly _panel: vscode.WebviewPanel;
+	private readonly _session: vscode.DebugSession;
+	private readonly _frameIdGetter: curFrameIdGetter;
 
 	private disposables: vscode.Disposable[] = [];
-	private visualizedObject: any[] = [];
+	private variablesReference: number = 0;
+	private threadId: number = 0;
 
-	private constructor(extensionPath: string) {
+	private constructor(extensionPath: string, frameIdGetter: curFrameIdGetter, session: vscode.DebugSession, variablesReference?: number) {
 		const currentPanel = vscode.window.createWebviewPanel('rdbg', 'object visualizer', vscode.ViewColumn.Beside, {
 			enableScripts: true,
 			localResourceRoots: [vscode.Uri.file(path.join(extensionPath, 'media'))]
@@ -350,58 +402,97 @@ class ObjectVisualizerPanel {
 		ObjectVisualizerPanel.currentPanel = currentPanel;
 		this._extensionPath = extensionPath;
 		this._panel = currentPanel;
+		this._session = session;
+		this._frameIdGetter = frameIdGetter;
+		if (variablesReference !== undefined) {
+			this.variablesReference = variablesReference;
+			this.visualizeObjects({offset: 0, pageSize: 30});
+		}
 
-		vscode.debug.onDidStartDebugSession(() => {
-			this.registerDisposable(
-				vscode.debug.onDidReceiveDebugSessionCustomEvent(event => {
-					switch (event.event) {
-						case 'visualizeRequested':
-							this.visualizedObject = event.body.value;
-							this.updateWebview();
-							break;
-					}
-				})
-			)
-			this.startWebview();
-		})
+		this.registerDisposable(
+			vscode.debug.onDidReceiveDebugSessionCustomEvent(event => {
+				switch (event.event) {
+					case 'visualizeRequested':
+						this.variablesReference = event.body.variablesReference;
+						this.threadId = event.body.threadId;
+						this.visualizeObjects({offset: 0, pageSize: 30});
+						break;
+				}
+			})
+		)
 
-		vscode.debug.onDidTerminateDebugSession(() => {
-			currentPanel.webview.html = this.getWelcomePage();
+		this._panel.onDidDispose(() => {
 			this.disposables.forEach(disp => {
 				disp.dispose();
 			})
+			this._panel.dispose();
 		})
 	}
 
 	private reveal() {
-		const session = vscode.debug.activeDebugSession;
-		if (session === undefined) {
-			this._panel.webview.html = this.getWelcomePage();
-			return
+		this.registerDisposable(
+			this._panel.webview.onDidReceiveMessage((message) => {
+				switch (message.command) {
+					case 'updateTable':
+						this.visualizeObjects(message.args)
+						break;
+					case 'evaluate':
+						this.evalExpression(message.args);
+				}
+			})
+		)
+		this._panel.webview.html = this.getWebviewContent();
+	}
+
+	private async visualizeObjects(args: {offset: Number, pageSize: Number}) {
+		let resp: any;
+		try {
+			resp = await this._session.customRequest('getVisObjects', {
+				variablesReference: this.variablesReference,
+				offset: args.offset,
+				pageSize: args.pageSize
+			})
+		} catch (err) {
+			console.error(err)
+			return;
 		}
 
-		this.startWebview()
+
+		this._panel.webview.postMessage({
+			command: 'tableUpdated',
+			objects: resp.objects,
+			totalLength: resp.totalLength
+		})
+	}
+
+	private async evalExpression(args: {expression: string, pageSize: Number}) {
+		let resp: any;
+		try {
+			resp = await this._session.customRequest('evaluateVisObjects', {
+				expression: args.expression,
+				frameId: this._frameIdGetter.frameId,
+				pageSize: args.pageSize
+			})
+		} catch (err) {
+			console.error(err)
+		}
+
+		this._panel.webview.postMessage({
+			command: 'tableUpdated',
+			objects: resp.objects,
+			totalLength: resp.totalLength
+		})
 	}
 
 	private registerDisposable(disp: vscode.Disposable) {
 		this.disposables.push(disp);
 	}
-
-	private startWebview() {
-		this._panel.webview.html = this.getWebviewContent();
-	}
-
-	private updateWebview() {
-		if (!this._panel.visible || this.visualizedObject.length === 0) return
-		this._panel.webview.postMessage({
-			command: 'update',
-			object: this.visualizedObject
-		})
-	}
 	
 	private getWebviewContent() {
 		const styleMainUri = vscode.Uri.file(path.join(this._extensionPath, 'media', 'main.css'));
 		const styleMainSrc = this._panel.webview.asWebviewUri(styleMainUri);
+		const styleVisualizerUri = vscode.Uri.file(path.join(this._extensionPath, 'media', 'visualizer.css'));
+		const styleVisualizerSrc = this._panel.webview.asWebviewUri(styleVisualizerUri);
 		const scriptMainUri = vscode.Uri.file(path.join(this._extensionPath, 'media', 'visualizer.js'));
 		const scriptMainSrc = this._panel.webview.asWebviewUri(scriptMainUri);
 		return `
@@ -413,9 +504,8 @@ class ObjectVisualizerPanel {
 
 						<title>Object Visualizer</title>
 						<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-						<script src="https://unpkg.com/gridjs/dist/gridjs.umd.js"></script>
-						<link href="https://unpkg.com/gridjs/dist/theme/mermaid.min.css" rel="stylesheet">
-
+						<link href="${styleMainSrc}" rel="stylesheet"></link>
+						<link href="${styleVisualizerSrc}" rel="stylesheet"></link>
 				</head>
 				<body>
 						<select name="visualization" id="visualization" disabled>
@@ -424,27 +514,9 @@ class ObjectVisualizerPanel {
 						</select>
 						<div id="container">
 							<div class="tableView"></div>
-							<div>
-								<canvas id="myChart"></canvas>
-							</div>
+							<div class="chartView"></div>
 						</div>
 						<script src=${scriptMainSrc}></script>
-				</body>
-			</html>`;
-	}
-
-	private getWelcomePage() {
-		return `
-			<!DOCTYPE html>
-			<html lang="en>
-				<head>
-					<meta charset="UTF-8">
-					<meta name="viewport" content="width=device-width, initial-scale=1.0">
-					<title>Object Visualizer</title>
-				</head>
-				<body>
-					<h1>Welcome to Object Visualizer!</h1>
-					<h2>Debugging session is not activated now.</h2>
 				</body>
 			</html>`;
 	}

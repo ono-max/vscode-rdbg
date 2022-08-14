@@ -187,11 +187,19 @@
 				}
 			}
 		},
+		"menus": {
+			"commandPalette": [
+			  {
+				"command": "rdbgInspector.start",
+				"when": "debuggersAvailable && inDebugMode"
+			  }
+			]
+		},
 		"commands": [
 			{
-			  "command": "HistoryViewer.start",
-			  "title": "Record history of where code stops",
-			  "category": "History View"
+			  "command": "rdbgInspector.start",
+			  "title": "Inspect Debugging Information",
+			  "category": "rdbg Inspector"
 			}
 		  ]
 	},
