@@ -101,8 +101,7 @@ const SVG_ICONS = {
                 if (self.viewRendrer.recordButton.classList.contains('disabled')) {
                     return
                 }
-                const lastRec = self.curAllRecs[self.curAllRecs.length - 1]
-                if (lastRec.begin_cursor + lastRec.locations.length <= self.logIndex) {
+                if (self.logIndex === 0) {
                     return
                 }
                 self.viewRendrer.disableControlButtons();
