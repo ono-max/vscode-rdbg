@@ -112,7 +112,7 @@ button:not(:disabled) {
     position: absolute;
     color: var(--vscode-input-foreground);
     background-color: var(--vscode-input-background);
-    top: 13px;
+    top: 35px;
 }
 
 .prevPageButton {
@@ -128,4 +128,15 @@ button:not(:disabled) {
 .pageButtons {
     display: flex;
     justify-content: space-evenly;
+}
+
+.tabContent.active {
+    color: var(--vscode-tab-activeForeground);
+    background-color: var(--vscode-tab-activeBackground);
+}
+
+.tabContent {
+    color: var(--vscode-tab-inactiveForeground);
+    background-color: var(--vscode-tab-inactiveBackground);
+    border: none;
 }

@@ -40,4 +40,10 @@
     font-size: var(--vscode-editor-font-size);
     font-weight: var(--vscode-editor-font-weight);
     padding: 5px;
+    width: 100%;
+}
+
+select.visualization {
+    color: var( --vscode-menu-foreground);
+    background-color: var(--vscode-menu-background);
 }

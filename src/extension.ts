@@ -70,7 +70,6 @@ function export_breakpoints(context: vscode.ExtensionContext) {
 }
 
 const rdbgInspectorCmd = 'rdbgInspector.start';
-const threadIdKey = 'threadId';
 const variablesReferenceKey = 'variablesReference';
 
 export function activate(context: vscode.ExtensionContext) {
@@ -144,7 +143,7 @@ export function activate(context: vscode.ExtensionContext) {
 			statusBar.hide();
 		}),
 
-		vscode.languages.registerInlineValuesProvider('*', frameIdGetter)
+		vscode.languages.registerInlineValuesProvider('*', frameIdGetter),
 	];
 
 	context.subscriptions.concat(
@@ -155,7 +154,7 @@ export function activate(context: vscode.ExtensionContext) {
 export function deactivate() {
 }
 
-class FrameIdGetter implements vscode.InlineValuesProvider,curFrameIdGetter {
+class FrameIdGetter implements vscode.InlineValuesProvider, curFrameIdGetter {
 	frameId: number = 0;
 	provideInlineValues(document: vscode.TextDocument, viewPort: vscode.Range, context: vscode.InlineValueContext, token: vscode.CancellationToken): vscode.ProviderResult<vscode.InlineValue[]> {
 		this.frameId = context.frameId;
@@ -242,7 +241,7 @@ class HistoryViewerPanel {
 				const session = vscode.debug.activeDebugSession;
 				switch (message.command) {
 					case 'viewLoaded':
-						if (this.completeTraces.length === 0 ) {
+						if (this.completeTraces.length === 0) {
 							return
 						}
 						this._panel.webview.postMessage({
@@ -251,7 +250,7 @@ class HistoryViewerPanel {
 							logIndex: this.logIndex
 						})
 						break
-	
+
 					case 'goTo':
 					case 'goBackTo':
 						if (session === undefined) {
@@ -259,7 +258,7 @@ class HistoryViewerPanel {
 						}
 
 						this.focusNonWebViewEditor();
-						session.customRequest(message.command, {'times': message.times}).then(undefined, console.error)
+						session.customRequest(message.command, { 'times': message.times }).then(undefined, console.error)
 						break;
 					case 'startRecord':
 					case 'stopRecord':
@@ -292,7 +291,7 @@ class HistoryViewerPanel {
 	}
 
 	private updateWebview() {
-		if (!this._panel.visible || this.completeTraces.length === 0 ) {
+		if (!this._panel.visible || this.completeTraces.length === 0) {
 			return
 		}
 		this._panel.webview.postMessage({
@@ -356,9 +355,9 @@ class ObjectVisualizerPanel {
 			const panel = new ObjectVisualizerPanel(extensionPath, frameIdGetter, session, variablesReference);
 			panel.reveal();
 		})
-		.catch((e) => {
-			console.error(e)
-		});
+			.catch((e) => {
+				console.error(e)
+			});
 	}
 
 	private static waitSession(): Promise<vscode.DebugSession> {
@@ -385,12 +384,12 @@ class ObjectVisualizerPanel {
 
 	private disposables: vscode.Disposable[] = [];
 	private variablesReference: number = 0;
-	private threadId: number = 0;
 
 	private constructor(extensionPath: string, frameIdGetter: curFrameIdGetter, session: vscode.DebugSession, variablesReference?: number) {
 		const currentPanel = vscode.window.createWebviewPanel('rdbg', 'object visualizer', vscode.ViewColumn.Beside, {
 			enableScripts: true,
-			localResourceRoots: [vscode.Uri.file(path.join(extensionPath, 'media'))]
+			localResourceRoots: [vscode.Uri.file(path.join(extensionPath, 'media'))],
+			retainContextWhenHidden: true
 		});
 		ObjectVisualizerPanel.currentPanel = currentPanel;
 		this._extensionPath = extensionPath;
@@ -399,16 +398,20 @@ class ObjectVisualizerPanel {
 		this._frameIdGetter = frameIdGetter;
 		if (variablesReference !== undefined) {
 			this.variablesReference = variablesReference;
-			this.visualizeObjects({offset: 0, pageSize: 30});
+			this.visualizeObjects({offset: 0, pageSize: 30}, true);
 		}
 
 		this.registerDisposable(
 			vscode.debug.onDidReceiveDebugSessionCustomEvent(event => {
+				let records: any[] = [];
 				switch (event.event) {
-					case 'visualizeRequested':
-						this.variablesReference = event.body.variablesReference;
-						this.threadId = event.body.threadId;
-						this.visualizeObjects({offset: 0, pageSize: 30});
+					case 'recordsUpdated':
+						records = records.concat(event.body.records);
+						if (event.body.fin) {
+							const logIndex: number = event.body.logIndex;
+							this.updateWebview(records, logIndex);
+							records = []
+						}
 						break;
 				}
 			})
@@ -430,20 +433,34 @@ class ObjectVisualizerPanel {
 						this.visualizeObjects(message.args)
 						break;
 					case 'evaluate':
-						this.evalExpression(message.args);
+						this.evalExpression(message.args, message.newInput);
+						break;
+
+					case 'goTo':
+					case 'goBackTo':
+						this.focusNonWebViewEditor();
+						this._session.customRequest(message.command, { 'times': message.times }).then(undefined, console.error)
+						break;
+					case 'startRecord':
+					case 'stopRecord':
+						this.focusNonWebViewEditor();
+						this._session.customRequest(message.command).then(undefined, console.error);
+						break;
 				}
 			})
 		)
 		this._panel.webview.html = this.getWebviewContent();
 	}
 
-	private async visualizeObjects(args: {offset: Number, pageSize: Number}) {
+	private async visualizeObjects(args: { offset: number, pageSize: number }, newInput = false) {
 		let resp: any;
 		try {
 			resp = await this._session.customRequest('getVisObjects', {
 				variablesReference: this.variablesReference,
-				offset: args.offset,
-				pageSize: args.pageSize
+				keywords: {
+					offset: 0,
+					pageSize: args.pageSize,
+				}
 			})
 		} catch (err) {
 			console.error(err)
@@ -454,39 +471,71 @@ class ObjectVisualizerPanel {
 		this._panel.webview.postMessage({
 			command: 'tableUpdated',
 			objects: resp.objects,
-			totalLength: resp.totalLength
+			newInput,
 		})
 	}
 
-	private async evalExpression(args: {expression: string, pageSize: Number}) {
+	private async evalExpression(args: { expression: string, pageSize: number }, newInput = false) {
+		if (args.expression === '') return;
+
 		let resp: any;
 		try {
 			resp = await this._session.customRequest('evaluateVisObjects', {
 				expression: args.expression,
 				frameId: this._frameIdGetter.frameId,
-				pageSize: args.pageSize
+				keywords: {
+					offset: 0,
+					pageSize: args.pageSize
+				}
 			})
 		} catch (err) {
 			console.error(err)
+			return;
 		}
 
 		this._panel.webview.postMessage({
 			command: 'tableUpdated',
 			objects: resp.objects,
-			totalLength: resp.totalLength
+			newInput
 		})
 	}
+
+	private focusNonWebViewEditor() {
+		let uri: vscode.Uri | undefined;
+		for (let editor of vscode.window.visibleTextEditors) {
+			if (editor.document.uri !== undefined) {
+				uri = editor.document.uri;
+				break;
+			}
+		}
+		if (uri !== undefined) {
+			vscode.workspace.openTextDocument(uri).then(doc => {
+				vscode.window.showTextDocument(doc, vscode.ViewColumn.One, false);
+			})
+		}
+	}
+
+	private updateWebview(records: any[], logIndex: number) {
+		if (records.length === 0) {
+			return
+		}
+		this._panel.webview.postMessage({
+			command: 'update',
+			records: records,
+			logIndex
+		})
+	};
 
 	private registerDisposable(disp: vscode.Disposable) {
 		this.disposables.push(disp);
 	}
-	
+
 	private getWebviewContent() {
 		const styleMainUri = vscode.Uri.file(path.join(this._extensionPath, 'media', 'main.css'));
 		const styleMainSrc = this._panel.webview.asWebviewUri(styleMainUri);
 		const styleVisualizerUri = vscode.Uri.file(path.join(this._extensionPath, 'media', 'visualizer.css'));
 		const styleVisualizerSrc = this._panel.webview.asWebviewUri(styleVisualizerUri);
-		const scriptMainUri = vscode.Uri.file(path.join(this._extensionPath, 'media', 'visualizer.js'));
+		const scriptMainUri = vscode.Uri.file(path.join(this._extensionPath, 'media', 'main.js'));
 		const scriptMainSrc = this._panel.webview.asWebviewUri(scriptMainUri);
 		return `
 			<!DOCTYPE html>
@@ -501,14 +550,6 @@ class ObjectVisualizerPanel {
 						<link href="${styleVisualizerSrc}" rel="stylesheet"></link>
 				</head>
 				<body>
-						<select name="visualization" id="visualization" disabled>
-							<option value="table">Table</option>
-							<option value="bar-chart">Bar Chart</option>
-						</select>
-						<div id="container">
-							<div class="tableView"></div>
-							<div class="chartView"></div>
-						</div>
 						<script src=${scriptMainSrc}></script>
 				</body>
 			</html>`;
@@ -619,7 +660,7 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 	show_error(msg: string): void {
 		outputChannel.appendLine("Error: " + msg);
 		outputChannel.appendLine("Make sure to install rdbg command (`gem install debug`).\n" +
-		                         "If you are using bundler, write `gem 'debug'` in your Gemfile.");
+			"If you are using bundler, write `gem 'debug'` in your Gemfile.");
 		outputChannel.show();
 	}
 
@@ -666,7 +707,7 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 		})
 	}
 
-	parse_port(port: string) : [string | undefined, number | undefined, string | undefined] {
+	parse_port(port: string): [string | undefined, number | undefined, string | undefined] {
 		var m;
 
 		if (port.match(/^\d+$/)) {
@@ -699,20 +740,20 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 			outputChannel.appendLine(JSON.stringify(list));
 
 			switch (list.length) {
-			case 0:
-				vscode.window.showErrorMessage("Can not find attachable Ruby process.");
-				return new DebugAdapterInlineImplementation(new StopDebugAdapter);
-			case 1:
-				sock_path = list[0];
-				break;
-			default:
-				const sock = await vscode.window.showQuickPick(list);
-				if (sock) {
-					sock_path = sock;
-				}
-				else {
+				case 0:
+					vscode.window.showErrorMessage("Can not find attachable Ruby process.");
 					return new DebugAdapterInlineImplementation(new StopDebugAdapter);
-				}
+				case 1:
+					sock_path = list[0];
+					break;
+				default:
+					const sock = await vscode.window.showQuickPick(list);
+					if (sock) {
+						sock_path = sock;
+					}
+					else {
+						return new DebugAdapterInlineImplementation(new StopDebugAdapter);
+					}
 			}
 		}
 
@@ -732,7 +773,7 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 		return new Promise((resolve) => {
 			const rdbg = config.rdbgPath || "rdbg";
 			const command = this.make_shell_command(rdbg + " --util=gen-sockpath");
-			const p = child_process.exec(command, {cwd: config.cwd ? custom_path(config.cwd) : workspace_folder()});
+			const p = child_process.exec(command, { cwd: config.cwd ? custom_path(config.cwd) : workspace_folder() });
 			let path: string;
 
 			p.on('error', e => {
@@ -761,7 +802,7 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 		return new Promise((resolve) => {
 			const rdbg = config.rdbgPath || "rdbg";
 			const command = this.make_shell_command(rdbg + " --util=gen-portpath");
-			const p = child_process.exec(command, {cwd: config.cwd ? custom_path(config.cwd) : workspace_folder()});
+			const p = child_process.exec(command, { cwd: config.cwd ? custom_path(config.cwd) : workspace_folder() });
 			let path: string;
 
 			p.on('error', e => {
@@ -783,7 +824,7 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 		return new Promise((resolve) => {
 			const rdbg = config.rdbgPath || "rdbg";
 			const command = this.make_shell_command(rdbg + " --version");
-			const p = child_process.exec(command, {cwd: config.cwd ? custom_path(config.cwd) : workspace_folder()});
+			const p = child_process.exec(command, { cwd: config.cwd ? custom_path(config.cwd) : workspace_folder() });
 			let version: string;
 
 			p.on('error', e => {
@@ -819,7 +860,7 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 		}
 	}
 
-	env_prefix(env?: {[key: string]: string}): string {
+	env_prefix(env?: { [key: string]: string }): string {
 		if (env) {
 			let prefix = "";
 			for (const key in env) {
@@ -867,10 +908,10 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 		// outputChannel.appendLine(JSON.stringify(session));
 
 		// setup debugPort
-		let sock_path : string | undefined;
-		let tcp_host : string | undefined;
-		let tcp_port : number | undefined;
-		let tcp_port_file : string | undefined;
+		let sock_path: string | undefined;
+		let tcp_host: string | undefined;
+		let tcp_port: number | undefined;
+		let tcp_port_file: string | undefined;
 
 		if (config.debugPort) {
 			[tcp_host, tcp_port, sock_path] = this.parse_port(config.debugPort);
