@@ -58,11 +58,10 @@ const SVG_ICONS = {
 
         static async activate(records, logIdx, recRenderer, viewRenderer) {
             if (EventListenerFactory.historyView) {
-                EventListenerFactory.historyView.update(records, logIdx);
+                EventListenerFactory.historyView._update(records, logIdx, recRenderer);
                 return
             }
             EventListenerFactory.historyView = new EventListenerFactory(records, logIdx, recRenderer, viewRenderer)
-            EventListenerFactory.historyView.update(records, logIdx);
         }
 
         curPage = 1;
@@ -93,6 +92,7 @@ const SVG_ICONS = {
             this._addPrevPageListener();
             this._addNextPageListener();
             this._addFilterListener();
+            this._updateView();
         }
 
         _addStepBackListener() {
@@ -199,11 +199,16 @@ const SVG_ICONS = {
             })
         }
 
-        async update(records, logIdx) {
+        _update(records, logIdx, recRenderer) {
             this.curAllRecs = records;
             this.logIndex = logIdx;
-            this.viewRendrer.recordButton.innerHTML = SVG_ICONS.stopRecord;
+            this.recRenderer = recRenderer;
             this.maxPage = Math.ceil(this.curAllRecs.length / this.pageSize);
+            this._updateView();
+        };
+
+        _updateView() {
+            this.viewRendrer.recordButton.innerHTML = SVG_ICONS.stopRecord;
             const targetRec = this._findTargetRecords()
             this.recRenderer.activate(targetRec);
             this.viewRendrer.prevPageButton.style.display = 'block';
@@ -217,7 +222,7 @@ const SVG_ICONS = {
                 this.viewRendrer.prevPageButton.disabled = true;
             }
             this._enableAvailCmdButtons();
-        };
+        }
 
         _enableAvailCmdButtons() {
             this.viewRendrer.recordButton.classList.remove('disabled');
@@ -373,13 +378,16 @@ const SVG_ICONS = {
             ul.appendChild(this.#recordBtn);
             ul.appendChild(this.#goBackToBtn);
             ul.appendChild(this.#goToBtn);
-            this.#recordView.appendChild(ul);
-            this.#recordView.appendChild(this.#input);
+            const header = document.createElement('div');
+            header.className = 'header'
+            header.appendChild(this.#input);
+            header.appendChild(ul);
+            this.#recordView.appendChild(header);
             const frames = document.createElement('div');
             frames.className = 'frames';
             this.#recordView.appendChild(frames);
             const pageBtns = document.createElement('div');
-            pageBtns.className = 'PageButtons';
+            pageBtns.className = 'pageButtons';
             this.#prevPageBtn.style.display = 'none';
             this.#nextPageBtn.style.display = 'none';
             pageBtns.appendChild(this.prevPageButton);
@@ -530,9 +538,8 @@ const SVG_ICONS = {
         const table = document.createElement('table');
         const thead = document.createElement('thead');
         const tr = document.createElement('tr');
-        const headers = Object.keys(objects[0])
-        headers.forEach((header) => {
-            const text = document.createTextNode(header);
+        objects.columns.forEach((col) => {
+            const text = document.createTextNode(col);
             const th = document.createElement('th');
             th.appendChild(text);
             tr.appendChild(th);
@@ -540,9 +547,9 @@ const SVG_ICONS = {
         thead.appendChild(tr);
         table.appendChild(thead);
         const tbody = document.createElement('tbody')
-        objects.forEach((obj) => {
+        objects.data.forEach((obj) => {
             const tr = document.createElement('tr');
-            Object.values(obj).forEach((val) => {
+            obj.forEach((val) => {
                 const text = document.createTextNode(val);
                 const td = document.createElement('td');
                 td.appendChild(text);
@@ -551,39 +558,45 @@ const SVG_ICONS = {
             tbody.appendChild(tr);
         })
         table.appendChild(tbody);
-        tableView.appendChild(table);
+        return table
     }
 
-    function pagination(len) {
+    function paginate(len) {
         const totalPage = Math.ceil(len / pageSize);
-        const ul = document.createElement('ul')
+        const pagination = document.createElement('div');
+        pagination.className = 'pagination';
+        const prevBtn = document.createElement('button');
+        prevBtn.textContent = 'Previous';
+        pagination.appendChild(prevBtn);
         for (let i = 1; i <= totalPage; i++) {
-            const li = document.createElement('li');
-            const pageNum = i.toString();
-            li.textContent = pageNum;
-            li.setAttribute('data-page-num', pageNum)
-            li.addEventListener('click', getNewPage)
-            ul.appendChild(li);
+            const btn = document.createElement('button');
+            btn.textContent = i.toString();
+            btn.addEventListener('click', () => {
+                while (evalResult.firstChild) {
+                    evalResult.removeChild(evalResult.firstChild);
+                }
+                const offset = (i - 1) * pageSize;
+                vscode.postMessage({
+                    command: 'updateTable',
+                    args: {
+                        offset,
+                        pageSize
+                    }
+                })
+            })
+            pagination.appendChild(btn);
         }
-        tableView.appendChild(ul);
-    }
-
-    async function getNewPage() {
-        const pageNum = this.dataset.pageNum;
-        const offset = (pageNum - 1) * pageSize;
-        vscode.postMessage({
-            command: 'updateTable',
-            args: {
-                offset,
-                pageSize
-            }
-        })
+        const nextBtn = document.createElement('button');
+        nextBtn.textContent = 'Next';
+        pagination.appendChild(nextBtn);
+        return pagination
     }
 
     function update(data) {
         const visualization = document.createElement('select');
         visualization.name = 'visualization';
         visualization.className = 'visualization';
+        const charts = document.createElement('div');
         data.objects.forEach((obj, idx) => {
             switch (obj.type) {
                 case 'table':
@@ -592,8 +605,6 @@ const SVG_ICONS = {
                     tableOpt.innerText = 'Table';
                     tableOpt.dataset.index = idx.toString();
                     visualization.appendChild(tableOpt);
-                    createTable(obj.params.data);
-                    pagination(obj.params.len);
                     break;
                 case 'barChart':
                     const barChartOpt = document.createElement('option');
@@ -610,19 +621,36 @@ const SVG_ICONS = {
                     visualization.appendChild(lineChartOpt);
                     break;
                 case 'html':
-                    const htmlView = document.createElement('div');
-                    htmlView.innerHTML = obj.params.data;
-                    const style = document.createElement('style');
-                    style.innerHTML = obj.params.css;
-                    document.head.insertAdjacentElement('beforeend', style);
-                    replView.appendChild(htmlView);
+                    const htmlOpt = document.createElement('option');
+                    htmlOpt.value = 'html'
+                    htmlOpt.innerText = 'HTML View'
+                    htmlOpt.dataset.index = idx.toString();
+                    visualization.appendChild(htmlOpt);
                     break;
-                case 'png':
-                    const svgView = document.createElement('div');
-                    const img = document.createElement('img');
-                    img.src = `data:image/png;base64,${obj.params.data}`;
-                    svgView.appendChild(img);
-                    replView.appendChild(svgView);
+                case 'image':
+                    switch (obj.mimeType) {
+                        case 'png':
+                            const pngOpt = document.createElement('option');
+                            pngOpt.value = 'png';
+                            pngOpt.innerText = 'PNG Image';
+                            pngOpt.dataset.index = idx.toString();
+                            visualization.appendChild(pngOpt);
+                            break;
+                        case 'svg':
+                            const svgOpt = document.createElement('option');
+                            svgOpt.value = 'svg';
+                            svgOpt.innerText = 'SVG Image';
+                            svgOpt.dataset.index = idx.toString();
+                            visualization.appendChild(svgOpt);
+                            break;
+                    }
+                    break;
+                case 'tree':
+                    const treeOpt = document.createElement('option');
+                    treeOpt.value = 'tree';
+                    treeOpt.innerText = 'Tree View';
+                    treeOpt.dataset.index = idx.toString();
+                    visualization.appendChild(treeOpt);
                     break;
             }
         })
@@ -630,47 +658,116 @@ const SVG_ICONS = {
             const idx = visualization.selectedIndex;
             const opt = visualization.options[idx];
             if (opt.dataset.index == undefined) return;
+            const obj = data.objects[parseInt(opt.dataset.index)]
             switch (e.target.value) {
                 case 'bar':
-                    tableView.style.display = 'none';
-                    createGraph(data.objects[parseInt(opt.dataset.index)].params, 'bar');
-                    chartView.style.display = 'block';
+                    while (charts.firstChild) {
+                        charts.removeChild(charts.firstChild);
+                    }
+                    const barChart = createGraph(obj, 'bar');
+                    charts.appendChild(barChart);
                     break;
                 case 'line':
-                    tableView.style.display = 'none';
-                    createGraph(data.objects[parseInt(opt.dataset.index)].params, 'line');
-                    chartView.style.display = 'block';
+                    while (charts.firstChild) {
+                        charts.removeChild(charts.firstChild);
+                    }
+                    const lineChart = createGraph(obj, 'line');
+                    charts.appendChild(lineChart);
                     break;
                 case 'table':
-                    tableView.style.display = 'block'
-                    chartView.style.display = 'none';
+                    while (charts.firstChild) {
+                        charts.removeChild(charts.firstChild);
+                    }
+                    const table = createTable(obj);
+                    charts.appendChild(table);
+                    if (obj.paginate !== undefined) {
+                        const ul = paginate(obj.paginate.totalLen);
+                        charts.appendChild(ul);
+                    }
+                    break;
+                case 'html':
+                    while (charts.firstChild) {
+                        charts.removeChild(charts.firstChild);
+                    }
+                    const htmlView = document.createElement('div');
+                    htmlView.innerHTML = obj.data;
+                    const style = document.createElement('style');
+                    style.innerHTML = obj.css;
+                    document.head.insertAdjacentElement('beforeend', style);
+                    charts.appendChild(htmlView);
+                    break;
+                case 'png':
+                    while (charts.firstChild) {
+                        charts.removeChild(charts.firstChild);
+                    }
+                    const pngView = document.createElement('div');
+                    const png = document.createElement('img');
+                    png.src = `data:image/png;base64,${obj.data}`;
+                    pngView.appendChild(png);
+                    charts.appendChild(pngView);
+                    break;
+                case 'svg':
+                    while (charts.firstChild) {
+                        charts.removeChild(charts.firstChild);
+                    }
+                    const svgView = document.createElement('div');
+                    svgView.innerHTML = obj.data
+                    charts.appendChild(svgView);
+                    break;
+                case 'tree':
+                    while (charts.firstChild) {
+                        charts.removeChild(charts.firstChild);
+                    }
+                    const treeView = document.createElement('div');
+                    treeView.className = 'treeView';
+                    const view = getTreeView(obj.data);
+                    treeView.append(view);
+                    charts.appendChild(treeView);
                     break;
             };
         });
-        if (visualization.options.length > 1) replView.appendChild(visualization);
-        if (data.newInput) {
-            const replInput = document.createElement('textarea');
-            replInput.rows = 1;
-            replInput.className = 'replInput';
-            replInput.addEventListener('keydown', evalExpression, false);
-            replView.appendChild(replInput);
+        if (visualization.options.length >= 1) {
+            evalResult.appendChild(visualization);
+            evalResult.appendChild(charts);
+            const event = new Event('change');
+            visualization.dispatchEvent(event);
         }
     };
 
-    // function resetView() {
-    //     chartView.innerHTML = '';
-    //     tableView.innerHTML = '';
-    // }
+    function getTreeView(data) {
+        const ul = document.createElement('ul');
+        data.forEach((obj) => {
+            for (let [key, value] of Object.entries(obj)) {
+                const li = document.createElement('li');
+                if (value instanceof Array) {
+                    li.innerText = `${key}:`;
+                    const ul = getTreeView(value);
+                    li.appendChild(ul);
+                } else {
+                    const text = `${key}: ${JSON.stringify(value)}`;
+                    li.innerText = text;
+                }
+                ul.appendChild(li);
+            }
+        })
+        return ul;
+    }
+
+    let evalResult;
 
     function evalExpression(e) {
         switch (e.code) {
             case 'Backspace':
-                if (this.rows > 1) this.rows -= 1;
+                if (this.rows > 1 && this.value.endsWith('\n')) this.rows -= 1;
                 break;
             case 'Enter':
                 switch (true) {
                     case e.metaKey:
                         e.preventDefault();
+                        if (e.target.nextElementSibling) e.target.nextElementSibling.remove();
+                        evalResult = document.createElement('div');
+                        evalResult.className = 'evalResult';
+                        e.target.insertAdjacentElement('afterend', evalResult);
                         vscode.postMessage({
                             command: 'evaluate',
                             args: {
@@ -678,23 +775,6 @@ const SVG_ICONS = {
                                 pageSize: pageSize,
                             }
                         })
-                        break;
-                    case e.shiftKey:
-                        e.preventDefault();
-                        const nodes =  document.querySelectorAll('textarea')
-                        const lastNode = nodes[nodes.length - 1];
-                        let newInput = false;
-                        if (this === lastNode) {
-                            newInput = true;
-                        }
-                        vscode.postMessage({
-                            command: 'evaluate',
-                            args: {
-                                expression: this.value,
-                                pageSize: pageSize,
-                            },
-                            newInput
-                        });
                         break;
                     default:
                         this.rows += 1;
@@ -712,72 +792,28 @@ const SVG_ICONS = {
         return getComputedStyle(document.body).getPropertyValue(prop);
     }
 
-    function getRandColor() {
-        const r = Math.floor(Math.random() * 256)
-        const g = Math.floor(Math.random() * 256)
-        const b = Math.floor(Math.random() * 256)
-        return `rgba(${r}, ${g}, ${b}, 0.5)`
-    }
-
     function createGraph(params, type) {
-        // const xAxisKeys = [];
-        // const yAxisKeys = [];
-        while (chartView.firstChild) {
-            chartView.removeChild(chartView.firstChild);
-        }
+        const chartView = document.createElement('div');
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         const uid = new Date().getTime().toString()
-        // for (let [key, val] of Object.entries(objects[0])) {
-        //     if (key === 'id' || !Number.isInteger(val)) {
-        //         xAxisKeys.push(key)
-        //     } else {
-        //         yAxisKeys.push(key)
-        //     }
-        // }
-        params.data.forEach((obj, idx) => {
-            if (obj.id !== undefined) {
-                obj[uid] = obj.id.toString();
-            } else {
-                obj[uid] = idx.toString();
-            }
-        })
-
-        let datasets = []
-        params.yAxisKeys.forEach((key) => {
-            const dataset = {
-                label: key,
-                data: params.data,
-                parsing: {
-                    yAxisKey: key,
-                },
-                backgroundColor: getRandColor()
-            }
-            datasets.push(dataset);
-        })
+        const data = params.convData || params.data;
         const cfg = {
-            type: type,
-            data: {
-                datasets: datasets,
-            },
-            options: {
-                parsing: {
-                    xAxisKey: uid,
-                }
-            }
+            type,
+            data
         };
         const chartInstance = new Chart(
             ctx,
             cfg
         );
         const select = document.createElement('select');
-        params.xAxisKeys.forEach((key, idx) => {
-            const option = document.createElement('option');
-            const text = document.createTextNode(key);
-            option.appendChild(text);
-            option.value = idx.toString();
-            select.appendChild(option)
-        })
+        // params.xAxisKeys.forEach((key, idx) => {
+        //     const option = document.createElement('option');
+        //     const text = document.createTextNode(key);
+        //     option.appendChild(text);
+        //     option.value = idx.toString();
+        //     select.appendChild(option)
+        // })
         chartView.appendChild(canvas);
         chartView.appendChild(select);
         select.addEventListener('change', (e) => {
@@ -789,23 +825,26 @@ const SVG_ICONS = {
             chartInstance.options.parsing.xAxisKey = key;
             chartInstance.update();
         });
+        return chartView;
     }
+
+    let objectTab;
 
     function createTab() {
         const tab = document.createElement('div');
         tab.className = 'tab';
-        const replTab = document.createElement('button');
-        replTab.innerText = 'ChartVis'
-        replTab.classList.add('tabContent');
-        replTab.addEventListener('click', () => {
+        objectTab = document.createElement('button');
+        objectTab.innerText = 'Object'
+        objectTab.classList.add('tabContent');
+        objectTab.addEventListener('click', () => {
             document.querySelectorAll('.tabContent').forEach((element) => {
                 element.classList.remove('active');
             })
-            replTab.classList.add('active')
+            objectTab.classList.add('active')
             viewRenderer.deactivate();
             replView.style.display = 'block';
         })
-        tab.appendChild(replTab);
+        tab.appendChild(objectTab);
         const recordTab = document.createElement('button');
         recordTab.innerText = 'History';
         recordTab.classList.add('tabContent');
@@ -824,8 +863,6 @@ const SVG_ICONS = {
     createTab();
 
     const viewRenderer = new HistoryViewRenderer();
-    let tableView;
-    let chartView;
     let replInput;
     let replView;
 
@@ -837,13 +874,10 @@ const SVG_ICONS = {
         replInput.className = 'replInput';
         replInput.addEventListener('keydown', evalExpression, false);
         replView.appendChild(replInput);
-        tableView = document.createElement('div');
-        tableView.className = 'tableView';
-        replView.appendChild(tableView);
-        chartView = document.createElement('div');
-        chartView.className = 'chartView';
+        evalResult = document.createElement('div');
+        evalResult.className = 'evalResult';
+        replView.appendChild(evalResult);
         replView.style.display = 'none';
-        replView.appendChild(chartView);
         document.body.appendChild(replView);
     }
 
@@ -858,6 +892,7 @@ const SVG_ICONS = {
                 EventListenerFactory.activate(data.records, data.logIndex, recRenderer, viewRenderer)
                 break;
             case 'tableUpdated':
+                objectTab.click();
                 update(data);
                 break;
         };

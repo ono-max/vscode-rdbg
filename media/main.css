@@ -7,6 +7,11 @@ body {
     color: var(--vscode-editor-foreground);
 }
 
+.header {
+    display: flex;
+    align-items: center;
+}
+
 .frame {
     cursor: pointer;
     white-space: nowrap;
@@ -109,10 +114,10 @@ button:not(:disabled) {
 
 .filterInput {
     padding: 5px;
-    position: absolute;
     color: var(--vscode-input-foreground);
     background-color: var(--vscode-input-background);
-    top: 35px;
+    height: 20px;
+    align-items: center;
 }
 
 .prevPageButton {
@@ -127,7 +132,7 @@ button:not(:disabled) {
 
 .pageButtons {
     display: flex;
-    justify-content: space-evenly;
+    justify-content: end;
 }
 
 .tabContent.active {
@@ -139,4 +144,30 @@ button:not(:disabled) {
     color: var(--vscode-tab-inactiveForeground);
     background-color: var(--vscode-tab-inactiveBackground);
     border: none;
+}
+
+.treeView ul {
+    list-style: none;
+}
+
+.treeView li {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.evalResult td {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.evalResult button {
+    color: var(--vscode-button-secondaryForeground);
+    background-color: var(--vscode-button-secondaryBackground);
+}
+
+.evalResult .pagination {
+    display: flex;
+    justify-content: end;
 }
