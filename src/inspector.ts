@@ -56,7 +56,7 @@ export class RdbgInspectorPanel {
 		this._frameIdGetter = frameIdGetter;
 		if (variablesReference !== undefined) {
 			this.variablesReference = variablesReference;
-			this.visualizeObjects({offset: 0, pageSize: 30});
+			this.visualizeObjects({ offset: 0, pageSize: 30 });
 		}
 
 		this.registerDisposable(
@@ -161,10 +161,10 @@ export class RdbgInspectorPanel {
 	private async simplifyData(resp: { data: { [key: string]: any; type: string; data: any[]; }[]; }) {
 		const toString = Object.prototype.toString;
 
-		resp.data.forEach((obj: {type: string, data: any[], [key: string]: any}) => {
+		resp.data.forEach((obj: { type: string, data: any[], [key: string]: any }) => {
 			switch (obj.type) {
 				case 'table':
-					const row  = obj.data[0];
+					const row = obj.data[0];
 					switch (toString.call(row)) {
 						case '[object Object]':
 							obj.data = obj.data.map((row) => {
