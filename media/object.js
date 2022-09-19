@@ -253,25 +253,7 @@ export class ObjectInspector {
             ctx,
             cfg
         );
-        const select = document.createElement('select');
-        // params.xAxisKeys.forEach((key, idx) => {
-        //     const option = document.createElement('option');
-        //     const text = document.createTextNode(key);
-        //     option.appendChild(text);
-        //     option.value = idx.toString();
-        //     select.appendChild(option)
-        // })
         chartView.appendChild(canvas);
-        chartView.appendChild(select);
-        // select.addEventListener('change', (e) => {
-        //     let key = params.xAxisKeys[parseInt(e.target.value)]
-        //     if (key === 'id') {
-        //         key = uid
-        //     }
-        //     crtXKey = key;
-        //     chartInstance.options.parsing.xAxisKey = key;
-        //     chartInstance.update();
-        // });
         return chartView;
     }
 
