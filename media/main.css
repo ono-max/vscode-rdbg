@@ -167,7 +167,7 @@ button:not(:disabled) {
     background-color: var(--vscode-button-secondaryBackground);
 }
 
-.evalResult .pagination {
+.pagination {
     display: flex;
     justify-content: end;
 }

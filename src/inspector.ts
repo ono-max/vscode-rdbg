@@ -42,6 +42,11 @@ export class RdbgInspectorPanel {
 
 	private disposables: vscode.Disposable[] = [];
 	private variablesReference: number = 0;
+	private threadId: number = 0;
+	private execLogs: any[] = [];
+	private currentLogIndex: number = -1;
+	private waitingExecLogs: boolean = false;
+	private totalLength: number = 0;
 
 	private constructor(extensionPath: string, frameIdGetter: CurFrameIdGetter, session: vscode.DebugSession, variablesReference?: number) {
 		const currentPanel = vscode.window.createWebviewPanel('rdbg', 'rdbg inspector', vscode.ViewColumn.Beside, {
@@ -71,6 +76,10 @@ export class RdbgInspectorPanel {
 							records = []
 						}
 						break;
+					case 'execLogsUpdated':
+						this.waitingExecLogs = false;
+						this.threadId = event.body.threadId
+						this.getExecLogs({ offset: 0, pageSize: 30 })
 				}
 			})
 		)
@@ -87,21 +96,40 @@ export class RdbgInspectorPanel {
 		this.registerDisposable(
 			this._panel.webview.onDidReceiveMessage((message) => {
 				switch (message.command) {
+					// Object
 					case 'updateTable':
 						this.visualizeObjects(message.args)
 						break;
 					case 'evaluate':
 						this.evalExpression(message.args);
 						break;
+
+					// History
 					case 'goTo':
-					case 'goBackTo':
+						if (this.waitingExecLogs) return
 						this.focusNonWebViewEditor();
 						this._session.customRequest(message.command, { 'times': message.times }).then(undefined, console.error)
+						this.waitingExecLogs = true;
+						break;
+					case 'goBackTo':
+						if (this.waitingExecLogs) return
+						if (this.currentLogIndex === 0) {
+							return
+						}
+						this.focusNonWebViewEditor();
+						this._session.customRequest(message.command, { 'times': message.times }).then(undefined, console.error)
+						this.waitingExecLogs = true;
 						break;
 					case 'startRecord':
 					case 'stopRecord':
 						this.focusNonWebViewEditor();
 						this._session.customRequest(message.command).then(undefined, console.error);
+						break;
+					case 'searchExecLogs':
+						this.searchExecLogs(message);
+						break;
+					case 'getExecLogs':
+						this.getExecLogs(message)
 						break;
 				}
 			})
@@ -131,6 +159,49 @@ export class RdbgInspectorPanel {
 		})
 	}
 
+	private async searchExecLogs(args: { keyword: string }) {
+		let logs = []
+		if (args.keyword === '') {
+			logs = this.execLogs;
+		} else {
+			for (let i = 0; i < this.execLogs.length; i++) {
+				if (this.execLogs[i].name.toLowerCase().indexOf(args.keyword.toLowerCase()) === -1) continue
+
+				logs.push(this.execLogs[i])
+			}
+		}
+		this._panel.webview.postMessage({
+			command: 'execLogsUpdated',
+			logs: logs,
+			currentLogIndex: this.currentLogIndex,
+			totalLength: this.totalLength
+		})
+	}
+
+	private async getExecLogs(args: { offset: number, pageSize: number }) {
+		let resp: any;
+		try {
+			resp = await this._session.customRequest('getExecLogs', {
+				threadId: this.threadId,
+				offset: args.offset,
+				pageSize: args.pageSize
+			})
+		} catch (err) {
+			console.error(err);
+			return;
+		}
+		this.execLogs = resp.logs;
+		this.currentLogIndex = resp.currentLogIndex;
+		this.totalLength = resp.totalLength
+
+		this._panel.webview.postMessage({
+			command: 'execLogsUpdated',
+			logs: resp.logs,
+			currentLogIndex: resp.currentLogIndex,
+			totalLength: resp.totalLength
+		})
+	}
+
 	private async evalExpression(args: { expression: string, pageSize: number }) {
 		if (args.expression === '') return;
 
@@ -151,11 +222,51 @@ export class RdbgInspectorPanel {
 
 		this.variablesReference = resp.variablesReference;
 
+		resp = await this.getInspectedObject(resp);
 		const data = await this.simplifyData(resp);
 		this._panel.webview.postMessage({
 			command: 'tableUpdated',
 			objects: data,
 		})
+	}
+
+	private async getInspectedObject(resp: any) {
+		const toString = Object.prototype.toString;
+
+		if (resp.toObjInspectorCalled) {return resp}
+
+		switch (toString.call(resp.data)) {
+			case '[object Array]':
+				const firstElem = resp.data[0];
+				switch (toString.call(firstElem)) {
+					case '[object Number]':
+						resp.data = [
+							{
+								type: 'table',
+								data: resp.data
+							},
+							{
+								type: 'barChart',
+								data: resp.data
+							},
+							{
+								type: 'lineChart',
+								data: resp.data
+							}
+						]
+						break;
+					case '[object String]':
+						resp.data = [
+							{
+								type: 'table',
+								data: resp.data
+							}
+						]
+						break;
+				}
+				break;
+		}
+		return resp;
 	}
 
 	private async simplifyData(resp: { data: { [key: string]: any; type: string; data: any[]; }[]; }) {
@@ -325,7 +436,7 @@ export class RdbgInspectorPanel {
 						<link href="${styleVisualizerSrc}" rel="stylesheet"></link>
 				</head>
 				<body>
-						<script src=${scriptMainSrc}></script>
+						<script type="module" src=${scriptMainSrc}></script>
 				</body>
 			</html>`;
 	}

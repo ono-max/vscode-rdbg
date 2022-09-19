@@ -1,39 +1,39 @@
-.tableView table {
+.evalResult table {
     border-collapse: collapse;
 }
 
-.tableView thead {
+.evalResult thead {
     background-color: var(--vscode-keybindingTable-headerBackground);
 }
 
-.tableView tbody {
+.evalResult tbody {
     white-space: nowrap;
     background-color: var(--vscode-keybindingTable-rowsBackground);
 }
 
-.tableView th {
+.evalResult th {
     border: solid 1px rgba(125, 125, 125, 0.5);
 }
 
-.tableView th, td {
+.evalResult th, td {
     padding: 5px 10px;
 }
 
-.tableView ul {
+.evalResult ul {
     list-style: none;
     display: flex;
     justify-content: space-evenly;
 }
 
-.tableView li {
+.evalResult li {
     cursor: pointer;
 }
 
-.tableView li:hover {
+.evalResult li:hover {
     background-color: var(--vscode-button-hoverBackground);
 }
 
-.replInput {
+.inputField {
     color: var(--vscode-input-foreground);
     background-color: var(--vscode-input-background);
     font-family: var(--vscode-editor-font-family);
