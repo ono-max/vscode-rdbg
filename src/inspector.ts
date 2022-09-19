@@ -190,6 +190,7 @@ export class RdbgInspectorPanel {
 			console.error(err);
 			return;
 		}
+		// TODO: Support multiple threads
 		this.execLogs = resp.logs;
 		this.currentLogIndex = resp.currentLogIndex;
 		this.totalLength = resp.totalLength
@@ -233,7 +234,7 @@ export class RdbgInspectorPanel {
 	private async getInspectedObject(resp: any) {
 		const toString = Object.prototype.toString;
 
-		if (resp.toObjInspectorCalled) {return resp}
+		if (resp.toObjInspectorCalled) { return resp }
 
 		switch (toString.call(resp.data)) {
 			case '[object Array]':
