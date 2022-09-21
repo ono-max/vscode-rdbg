@@ -54,14 +54,6 @@ export class ObjectInspector {
         return inputField;
     }
 
-    // Chart.defaults.color = this.getVSCodeColor('--vscode-editor-foreground');
-    // Chart.defaults.borderColor = this.getVSCodeColor('--vscode-editor-foreground');
-    // Chart.defaults.backgroundColor = this.getVSCodeColor('--vscode-editor-foreground');
-
-    // getVSCodeColor(prop) {
-    //     return getComputedStyle(document.body).getPropertyValue(prop);
-    // }
-
     _renderEvalResultElement() {
         const evalResult = document.createElement('div');
         evalResult.className = 'evalResult';
@@ -225,7 +217,7 @@ export class ObjectInspector {
             for (let [key, value] of Object.entries(obj)) {
                 const li = document.createElement('li');
                 if (value instanceof Array) {
-                    li.innerText = `${key}:`;
+                    li.innerText = `${key}`;
                     const ul = this.getTreeView(value);
                     li.appendChild(ul);
                 } else {
@@ -236,6 +228,14 @@ export class ObjectInspector {
             }
         })
         return ul;
+    }
+
+    getText(ary) {
+        const toString = Object.prototype.toString;
+        for (const elem of ary) {
+            if (toString.call(elem) === '[object String]') return elem
+        }
+        return ""
     }
 
     createGraph(params, type) {

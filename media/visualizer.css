@@ -21,16 +21,6 @@
 
 .evalResult ul {
     list-style: none;
-    display: flex;
-    justify-content: space-evenly;
-}
-
-.evalResult li {
-    cursor: pointer;
-}
-
-.evalResult li:hover {
-    background-color: var(--vscode-button-hoverBackground);
 }
 
 .inputField {
