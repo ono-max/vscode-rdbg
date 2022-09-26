@@ -159,4 +159,4 @@ In this case, the current directory of host (`${workspaceFolder}`) is shared wit
 ## Acknowledgement
 
 * This extension is based on [Ethan Reesor / VSCode Byebug · GitLab](https://gitlab.com/firelizzard/vscode-byebug/-/tree/master/) by Ethan Reesor. Without his great work, the extension can not be released (Koichi learned TypeScript, VSCode extension and DAP by his extension).
-* chart.js/Chart.js(https://github.com/chartjs/Chart.js) is used to render some charts.
+* [chart.js/Chart.js: Simple HTML5 Charts using the <canvas> tag](https://github.com/chartjs/Chart.js) is used to render some charts.
