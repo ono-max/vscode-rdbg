@@ -18,8 +18,7 @@ import {
 } from 'vscode';
 
 import {
-	RdbgInspectorPanel,
-	FrameIdGetter
+	enableRdbgInspector,
 } from './inspector';
 
 let outputChannel: vscode.OutputChannel;
@@ -74,16 +73,14 @@ function export_breakpoints(context: vscode.ExtensionContext) {
 	}
 }
 
-const rdbgInspectorCmd = 'rdbgInspector.start';
-const variablesReferenceKey = 'variablesReference';
-
 export function activate(context: vscode.ExtensionContext) {
 	outputChannel = vscode.window.createOutputChannel('rdbg');
 
 	vscode.debug.breakpoints;
 
+	const adapterDescriptorFactory = new RdbgAdapterDescriptorFactory();
 	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('rdbg', new RdbgInitialConfigurationProvider()));
-	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('rdbg', new RdbgAdapterDescriptorFactory()));
+	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('rdbg', adapterDescriptorFactory));
 	context.subscriptions.push(vscode.debug.registerDebugAdapterTrackerFactory('rdbg', new RdbgDebugAdapterTrackerFactory()));
 
 	//
@@ -117,43 +114,16 @@ export function activate(context: vscode.ExtensionContext) {
 		}
 	}
 
-	const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-	statusBar.command = rdbgInspectorCmd;
-	statusBar.text = '$(search) rdbg inspector';
-
-	const frameIdGetter = new FrameIdGetter
-
-	const disp = [
-		vscode.debug.onDidStartDebugSession(() => {
-			statusBar.show();
-		}),
-
-		vscode.commands.registerCommand(rdbgInspectorCmd, () => {
-			RdbgInspectorPanel.show(context.extensionPath, frameIdGetter)
-		}),
-
-		vscode.window.registerUriHandler({
-			handleUri(uri: vscode.Uri) {
-				const params = new URLSearchParams(uri.query);
-				const variablesReference = params.get(variablesReferenceKey);
-				if (variablesReference === null) {
-					console.error('variablesReference is not found')
-					return;
-				}
-				RdbgInspectorPanel.show(context.extensionPath, frameIdGetter, parseInt(variablesReference));
+	context.subscriptions.push(vscode.debug.onDidStartDebugSession((session) => {
+		const config = session.configuration as LaunchConfiguration;
+		adapterDescriptorFactory.get_version(config).then((strVer) => {
+			if (strVer === null) return;
+			const version = adapterDescriptorFactory.vernum(strVer)
+			if (version >= 1.7) {
+				enableRdbgInspector(context);
 			}
-		}),
-
-		vscode.debug.onDidTerminateDebugSession(() => {
-			statusBar.hide();
-		}),
-
-		vscode.languages.registerInlineValuesProvider('*', frameIdGetter),
-	];
-
-	context.subscriptions.concat(
-		disp
-	);
+		});
+	}));
 }
 
 export function deactivate() {
@@ -506,6 +476,7 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 
 	async launch(session: DebugSession): Promise<DebugAdapterDescriptor> {
 		const config = session.configuration as LaunchConfiguration;
+		// TODO: PLEASE CHANGE THIS PART when you create the PR.
 		const rdbg = config.rdbgPath || "/Users/s15236/workspace/debug/exe/rdbg";
 
 		// outputChannel.appendLine(JSON.stringify(session));

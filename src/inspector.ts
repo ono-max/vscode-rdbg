@@ -1,7 +1,50 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 
-export class RdbgInspectorPanel {
+const rdbgInspectorCmd = 'rdbgInspector.start';
+const variablesReferenceKey = 'variablesReference';
+
+export function enableRdbgInspector(ctx: vscode.ExtensionContext) {
+	const statusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+	statusBar.command = rdbgInspectorCmd;
+	statusBar.text = '$(search) rdbg inspector';
+
+	const frameIdGetter = new FrameIdGetter
+
+	const disp = [
+		vscode.debug.onDidStartDebugSession(() => {
+			statusBar.show();
+		}),
+
+		vscode.commands.registerCommand(rdbgInspectorCmd, () => {
+			RdbgInspectorPanel.show(ctx.extensionPath, frameIdGetter)
+		}),
+
+		vscode.window.registerUriHandler({
+			handleUri(uri: vscode.Uri) {
+				const params = new URLSearchParams(uri.query);
+				const variablesReference = params.get(variablesReferenceKey);
+				if (variablesReference === null) {
+					console.error('variablesReference is not found')
+					return;
+				}
+				RdbgInspectorPanel.show(ctx.extensionPath, frameIdGetter, parseInt(variablesReference));
+			}
+		}),
+
+		vscode.debug.onDidTerminateDebugSession(() => {
+			statusBar.hide();
+		}),
+
+		vscode.languages.registerInlineValuesProvider('*', frameIdGetter),
+	];
+
+	ctx.subscriptions.concat(
+		disp
+	);
+}
+
+class RdbgInspectorPanel {
 	private static currentPanel: vscode.WebviewPanel | undefined;
 	public static async show(extensionPath: string, frameIdGetter: CurFrameIdGetter, variablesReference?: number) {
 		if (RdbgInspectorPanel.currentPanel) {
