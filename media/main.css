@@ -180,3 +180,43 @@ button:not(:disabled) {
 .nodeName:hover {
     background-color: rgba(125, 125, 125, 0.2);
 }
+
+.evalResult table {
+    border-collapse: collapse;
+}
+
+.evalResult thead {
+    background-color: var(--vscode-keybindingTable-headerBackground);
+}
+
+.evalResult tbody {
+    white-space: nowrap;
+    background-color: var(--vscode-keybindingTable-rowsBackground);
+}
+
+.evalResult th {
+    border: solid 1px rgba(125, 125, 125, 0.5);
+}
+
+.evalResult th, td {
+    padding: 5px 10px;
+}
+
+.evalResult ul {
+    list-style: none;
+}
+
+.inputField {
+    color: var(--vscode-input-foreground);
+    background-color: var(--vscode-input-background);
+    font-family: var(--vscode-editor-font-family);
+    font-size: var(--vscode-editor-font-size);
+    font-weight: var(--vscode-editor-font-weight);
+    padding: 5px;
+    width: 100%;
+}
+
+select.visualization {
+    color: var( --vscode-menu-foreground);
+    background-color: var(--vscode-menu-background);
+}

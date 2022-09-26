@@ -420,8 +420,6 @@ export class RdbgInspectorPanel {
 	private getWebviewContent() {
 		const styleMainUri = vscode.Uri.file(path.join(this._extensionPath, 'media', 'main.css'));
 		const styleMainSrc = this._panel.webview.asWebviewUri(styleMainUri);
-		const styleVisualizerUri = vscode.Uri.file(path.join(this._extensionPath, 'media', 'visualizer.css'));
-		const styleVisualizerSrc = this._panel.webview.asWebviewUri(styleVisualizerUri);
 		const scriptMainUri = vscode.Uri.file(path.join(this._extensionPath, 'media', 'main.js'));
 		const scriptMainSrc = this._panel.webview.asWebviewUri(scriptMainUri);
 		return `
@@ -434,7 +432,6 @@ export class RdbgInspectorPanel {
 						<title>Object Visualizer</title>
 						<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 						<link href="${styleMainSrc}" rel="stylesheet"></link>
-						<link href="${styleVisualizerSrc}" rel="stylesheet"></link>
 				</head>
 				<body>
 						<script type="module" src=${scriptMainSrc}></script>
