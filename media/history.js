@@ -51,6 +51,7 @@ export class HistoryInspector {
     #historyView
     #vscode
     #pageSize = 30;
+    #frameContainer;
     /**
      * @param {import("vscode").Webview} vscode
      */
@@ -155,9 +156,9 @@ export class HistoryInspector {
         header.appendChild(this.#input);
         header.appendChild(ul);
         this.#historyView.appendChild(header);
-        const frames = document.createElement('div');
-        frames.className = 'frames';
-        this.#historyView.appendChild(frames);
+        this.#frameContainer = document.createElement('div');
+        this.#frameContainer.className = 'frames';
+        this.#historyView.appendChild(this.#frameContainer);
         document.body.appendChild(this.#historyView);
     }
 
@@ -192,7 +193,7 @@ export class HistoryInspector {
             const args = _getArgs(frame.args);
             div.appendChild(args);
             _addShowLocationsListener(div);
-            frameContainer.appendChild(div);
+            this.#frameContainer.appendChild(div);
             frame.locations.forEach((loc) => {
                 if (loc.index === currentLogIndex) {
                     div.click()
@@ -201,7 +202,7 @@ export class HistoryInspector {
         })
 
         const pagination = _paginate(totalLen);
-        frameContainer?.appendChild(pagination);
+        this.#frameContainer.appendChild(pagination);
 
         function _addShowLocationsListener(element) {
             element.addEventListener('click', function () {
@@ -260,7 +261,7 @@ export class HistoryInspector {
         }
 
         function _resetView() {
-            frameContainer.innerHTML = '';
+            this.#frameContainer.innerHTML = '';
         }
 
         function _createTableData(data, parent) {

@@ -39,8 +39,11 @@ import { ObjectInspector } from './object.js'
         document.body.appendChild(tab);
     }
 
+    // @ts-ignore
     Chart.defaults.color = getVSCodeColor('--vscode-editor-foreground');
+    // @ts-ignore
     Chart.defaults.borderColor = getVSCodeColor('--vscode-editor-foreground');
+    // @ts-ignore
     Chart.defaults.backgroundColor = getVSCodeColor('--vscode-editor-foreground');
 
     function getVSCodeColor(prop) {
