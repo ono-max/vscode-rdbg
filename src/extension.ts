@@ -119,7 +119,7 @@ export function activate(context: vscode.ExtensionContext) {
 		adapterDescriptorFactory.get_version(config).then((strVer) => {
 			if (strVer === null) return;
 			const version = adapterDescriptorFactory.vernum(strVer)
-			if (version >= 1.7) {
+			if (version >= 1007000) {
 				enableRdbgInspector(context);
 			}
 		});
