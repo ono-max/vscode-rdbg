@@ -171,3 +171,12 @@ button:not(:disabled) {
     display: flex;
     justify-content: end;
 }
+
+.nodeName {
+    display: flex;
+    cursor: pointer;
+}
+
+.nodeName:hover {
+    background-color: rgba(125, 125, 125, 0.2);
+}

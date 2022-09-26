@@ -1,5 +1,7 @@
 // @ts-check
 
+import { SVG_ICONS } from "./svg.js";
+
 export class ObjectInspector {
     #inputField
     #vscode
@@ -197,6 +199,7 @@ export class ObjectInspector {
                     }
                     const treeView = document.createElement('div');
                     treeView.className = 'treeView';
+                    console.log(obj.data)
                     const view = this.getTreeView(obj.data);
                     treeView.append(view);
                     charts.appendChild(treeView);
@@ -217,7 +220,24 @@ export class ObjectInspector {
             for (let [key, value] of Object.entries(obj)) {
                 const li = document.createElement('li');
                 if (value instanceof Array) {
-                    li.innerText = `${key}`;
+                    const div = document.createElement('div');
+                    div.className = 'nodeName';
+                    const collapsible = document.createElement('div');
+                    collapsible.classList.add('collapsible');
+                    collapsible.innerHTML = SVG_ICONS.expanded;
+                    div.appendChild(collapsible);
+                    const text = document.createTextNode(key);
+                    div.appendChild(text);
+                    div.addEventListener('click', function () {
+                        if (!(this.nextElementSibling instanceof HTMLUListElement)) return
+                        const expanded = this.classList.toggle('collapsed');
+                        if (expanded) {
+                            this.nextElementSibling.style.display = 'none';
+                        } else {
+                            this.nextElementSibling.style.display = 'block';
+                        }
+                    })
+                    li.appendChild(div);
                     const ul = this.getTreeView(value);
                     li.appendChild(ul);
                 } else {
