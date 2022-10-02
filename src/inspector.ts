@@ -148,13 +148,13 @@ class RdbgInspectorPanel {
 						break;
 
 					// History
-					case 'goTo':
+					case 'customStepIn':
 						if (this.waitingExecLogs) return
 						this.focusNonWebViewEditor();
 						this._session.customRequest(message.command, { 'times': message.times }).then(undefined, console.error)
 						this.waitingExecLogs = true;
 						break;
-					case 'goBackTo':
+					case 'customStepBack':
 						if (this.waitingExecLogs) return
 						if (this.currentLogIndex === 0) {
 							return

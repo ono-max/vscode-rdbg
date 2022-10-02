@@ -1,11 +1,11 @@
 export const SVG_ICONS = {
-    goTo: `
+    customStepIn: `
             <svg version="1.1" width="16" height="16" xmlns="http://www.w3.org/2000/svg">
                <path d="M 0 2 L 8 8 L 0 14 Z" />
                <path d="M 8 2 L 16 8 L 8 14 Z" />
             </svg>
         `,
-    goBackTo: `
+    customStepBack: `
             <svg version="1.1" width="16" height="16" xmlns="http://www.w3.org/2000/svg">
                 <path d="M 16 14 L 8 8 L 16 2 Z" />
                 <path d="M 8 14 L 0 8 L 8 2 Z" />

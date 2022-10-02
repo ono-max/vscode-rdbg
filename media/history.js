@@ -8,8 +8,8 @@ import { SVG_ICONS } from './svg.js'
 
 export class HistoryInspector {
     #recordBtn;
-    #goBackToBtn;
-    #goToBtn;
+    #customStepBackBtn;
+    #customStepInBtn;
     #input;
     #historyView
     #vscode
@@ -21,8 +21,8 @@ export class HistoryInspector {
     constructor(vscode) {
         this.#vscode = vscode;
         this.#recordBtn = this._renderRecordButton();
-        this.#goBackToBtn = this._renderStepBackButton();
-        this.#goToBtn = this._renderStepInButton();
+        this.#customStepBackBtn = this._renderStepBackButton();
+        this.#customStepInBtn = this._renderStepInButton();
         this.#input = this._renderFilterInput();
         this._initializeView();
     }
@@ -57,39 +57,39 @@ export class HistoryInspector {
     }
 
     _renderStepInButton() {
-        const goToBtn = document.createElement('li');
-        goToBtn.innerHTML = SVG_ICONS.goTo;
-        goToBtn.className = 'goToButton';
-        goToBtn.classList.add('disabled');
+        const customStepInBtn = document.createElement('li');
+        customStepInBtn.innerHTML = SVG_ICONS.customStepIn;
+        customStepInBtn.className = 'customStepInButton';
+        customStepInBtn.classList.add('disabled');
         const self = this;
-        goToBtn.addEventListener('click', function () {
+        customStepInBtn.addEventListener('click', function () {
             if (this.classList.contains('disabled')) {
                 return
             }
             self.#vscode.postMessage({
-                command: 'goTo',
+                command: 'customStepIn',
                 times: 1
             })
         })
-        return goToBtn;
+        return customStepInBtn;
     }
 
     _renderStepBackButton() {
-        const goBackToBtn = document.createElement('li');
-        goBackToBtn.innerHTML = SVG_ICONS.goBackTo;
-        goBackToBtn.className = 'goBackToButton';
-        goBackToBtn.classList.add('disabled');
+        const customStepBackBtn = document.createElement('li');
+        customStepBackBtn.innerHTML = SVG_ICONS.customStepBack;
+        customStepBackBtn.className = 'customStepBackButton';
+        customStepBackBtn.classList.add('disabled');
         const self = this;
-        goBackToBtn.addEventListener('click', function () {
+        customStepBackBtn.addEventListener('click', function () {
             if (this.classList.contains('disabled')) {
                 return
             }
             self.#vscode.postMessage({
-                command: 'goBackTo',
+                command: 'customStepBack',
                 times: 1
             })
         })
-        return goBackToBtn;
+        return customStepBackBtn;
     }
 
     _renderFilterInput() {
@@ -112,8 +112,8 @@ export class HistoryInspector {
         const ul = document.createElement('ul');
         ul.classList.add('debugButtons');
         ul.appendChild(this.#recordBtn);
-        ul.appendChild(this.#goBackToBtn);
-        ul.appendChild(this.#goToBtn);
+        ul.appendChild(this.#customStepBackBtn);
+        ul.appendChild(this.#customStepInBtn);
         const header = document.createElement('div');
         header.className = 'header'
         header.appendChild(this.#input);
@@ -127,8 +127,8 @@ export class HistoryInspector {
 
     _enableDebugCmdBtns() {
         this.#recordBtn.classList.remove('disabled');
-        this.#goBackToBtn.classList.remove('disabled');
-        this.#goToBtn.classList.remove('disabled');
+        this.#customStepBackBtn.classList.remove('disabled');
+        this.#customStepInBtn.classList.remove('disabled');
     }
 
     printExecLogs(execLogs, currentLogIndex, totalLen) {
@@ -241,9 +241,9 @@ export class HistoryInspector {
                 console.log(times, currentLogIndex, this.dataset.index)
                 var command;
                 if (times > 0) {
-                    command = 'goBackTo';
+                    command = 'customStepBack';
                 } else {
-                    command = 'goTo';
+                    command = 'customStepIn';
                     times = Math.abs(times);
                 }
                 vscode.postMessage({

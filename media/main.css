@@ -27,7 +27,7 @@ body {
     height: 14px;
 }
 
-.collapsible > svg {
+.collapsible>svg {
     height: 100%;
     stroke: var(--vscode-editor-foreground);
 }
@@ -65,11 +65,11 @@ button:not(:disabled) {
     fill: var(--vscode-debugIcon-stopForeground);
 }
 
-.goToButton {
+.customStepInButton {
     stroke: var(--vscode-debugIcon-stepIntoForeground);
 }
 
-.goBackToButton {
+.customStepBackButton {
     stroke: var(--vscode-debugIcon-stepBackForeground);
 }
 
@@ -86,19 +86,19 @@ button:not(:disabled) {
     align-items: center;
 }
 
-.debugButtons > li {
+.debugButtons>li {
     cursor: pointer;
     stroke-width: 1px;
     fill: transparent;
     stroke-linejoin: round;
 }
 
-.debugButtons > li[class~="disabled"] {
+.debugButtons>li[class~="disabled"] {
     cursor: not-allowed;
     filter: brightness(0.5);
 }
 
-.debugButtons > li:hover {
+.debugButtons>li:hover {
     background-color: var(--vscode-button-hoverBackground);
 }
 
@@ -198,7 +198,8 @@ button:not(:disabled) {
     border: solid 1px rgba(125, 125, 125, 0.5);
 }
 
-.evalResult th, td {
+.evalResult th,
+td {
     padding: 5px 10px;
 }
 
@@ -217,6 +218,6 @@ button:not(:disabled) {
 }
 
 select.visualization {
-    color: var( --vscode-menu-foreground);
+    color: var(--vscode-menu-foreground);
     background-color: var(--vscode-menu-background);
 }
