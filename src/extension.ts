@@ -77,8 +77,9 @@ export function activate(context: vscode.ExtensionContext) {
 
 	vscode.debug.breakpoints;
 
+	const adapterDescriptorFactory = new RdbgAdapterDescriptorFactory();
 	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('rdbg', new RdbgInitialConfigurationProvider()));
-	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('rdbg', new RdbgAdapterDescriptorFactory()));
+	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('rdbg', adapterDescriptorFactory));
 	context.subscriptions.push(vscode.debug.registerDebugAdapterTrackerFactory('rdbg', new RdbgDebugAdapterTrackerFactory()));
 
 	//
