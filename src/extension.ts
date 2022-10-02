@@ -2,7 +2,6 @@ import * as child_process from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
-import * as http from 'http';
 
 import {
 	CancellationToken,
@@ -78,9 +77,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 	vscode.debug.breakpoints;
 
-	const adapterDescriptorFactory = new RdbgAdapterDescriptorFactory();
 	context.subscriptions.push(vscode.debug.registerDebugConfigurationProvider('rdbg', new RdbgInitialConfigurationProvider()));
-	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('rdbg', adapterDescriptorFactory));
+	context.subscriptions.push(vscode.debug.registerDebugAdapterDescriptorFactory('rdbg', new RdbgAdapterDescriptorFactory()));
 	context.subscriptions.push(vscode.debug.registerDebugAdapterTrackerFactory('rdbg', new RdbgDebugAdapterTrackerFactory()));
 
 	//
@@ -233,7 +231,7 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 	show_error(msg: string): void {
 		outputChannel.appendLine("Error: " + msg);
 		outputChannel.appendLine("Make sure to install rdbg command (`gem install debug`).\n" +
-			"If you are using bundler, write `gem 'debug'` in your Gemfile.");
+		                         "If you are using bundler, write `gem 'debug'` in your Gemfile.");
 		outputChannel.show();
 	}
 
@@ -280,7 +278,7 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 		})
 	}
 
-	parse_port(port: string): [string | undefined, number | undefined, string | undefined] {
+	parse_port(port: string) : [string | undefined, number | undefined, string | undefined] {
 		var m;
 
 		if (port.match(/^\d+$/)) {
@@ -313,20 +311,20 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 			outputChannel.appendLine(JSON.stringify(list));
 
 			switch (list.length) {
-				case 0:
-					vscode.window.showErrorMessage("Can not find attachable Ruby process.");
+			case 0:
+				vscode.window.showErrorMessage("Can not find attachable Ruby process.");
+				return new DebugAdapterInlineImplementation(new StopDebugAdapter);
+			case 1:
+				sock_path = list[0];
+				break;
+			default:
+				const sock = await vscode.window.showQuickPick(list);
+				if (sock) {
+					sock_path = sock;
+				}
+				else {
 					return new DebugAdapterInlineImplementation(new StopDebugAdapter);
-				case 1:
-					sock_path = list[0];
-					break;
-				default:
-					const sock = await vscode.window.showQuickPick(list);
-					if (sock) {
-						sock_path = sock;
-					}
-					else {
-						return new DebugAdapterInlineImplementation(new StopDebugAdapter);
-					}
+				}
 			}
 		}
 
@@ -346,7 +344,7 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 		return new Promise((resolve) => {
 			const rdbg = config.rdbgPath || "rdbg";
 			const command = this.make_shell_command(rdbg + " --util=gen-sockpath");
-			const p = child_process.exec(command, { cwd: config.cwd ? custom_path(config.cwd) : workspace_folder() });
+			const p = child_process.exec(command, {cwd: config.cwd ? custom_path(config.cwd) : workspace_folder()});
 			let path: string;
 
 			p.on('error', e => {
@@ -375,7 +373,7 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 		return new Promise((resolve) => {
 			const rdbg = config.rdbgPath || "rdbg";
 			const command = this.make_shell_command(rdbg + " --util=gen-portpath");
-			const p = child_process.exec(command, { cwd: config.cwd ? custom_path(config.cwd) : workspace_folder() });
+			const p = child_process.exec(command, {cwd: config.cwd ? custom_path(config.cwd) : workspace_folder()});
 			let path: string;
 
 			p.on('error', e => {
@@ -397,7 +395,7 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 		return new Promise((resolve) => {
 			const rdbg = config.rdbgPath || "rdbg";
 			const command = this.make_shell_command(rdbg + " --version");
-			const p = child_process.exec(command, { cwd: config.cwd ? custom_path(config.cwd) : workspace_folder() });
+			const p = child_process.exec(command, {cwd: config.cwd ? custom_path(config.cwd) : workspace_folder()});
 			let version: string;
 
 			p.on('error', e => {
@@ -433,7 +431,7 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 		}
 	}
 
-	env_prefix(env?: { [key: string]: string }): string {
+	env_prefix(env?: {[key: string]: string}): string {
 		if (env) {
 			let prefix = "";
 			for (const key in env) {
@@ -476,16 +474,15 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 
 	async launch(session: DebugSession): Promise<DebugAdapterDescriptor> {
 		const config = session.configuration as LaunchConfiguration;
-		// TODO: PLEASE CHANGE THIS PART when you create the PR.
-		const rdbg = config.rdbgPath || "/Users/s15236/workspace/debug/exe/rdbg";
+		const rdbg = config.rdbgPath || "rdbg";
 
 		// outputChannel.appendLine(JSON.stringify(session));
 
 		// setup debugPort
-		let sock_path: string | undefined;
-		let tcp_host: string | undefined;
-		let tcp_port: number | undefined;
-		let tcp_port_file: string | undefined;
+		let sock_path : string | undefined;
+		let tcp_host : string | undefined;
+		let tcp_port : number | undefined;
+		let tcp_port_file : string | undefined;
 
 		if (config.debugPort) {
 			[tcp_host, tcp_port, sock_path] = this.parse_port(config.debugPort);
@@ -646,4 +643,3 @@ interface LaunchConfiguration extends DebugConfiguration {
 	rdbgPath?: string;
 	showProtocolLog?: boolean;
 }
-
