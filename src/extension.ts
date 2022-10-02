@@ -643,3 +643,4 @@ interface LaunchConfiguration extends DebugConfiguration {
 	rdbgPath?: string;
 	showProtocolLog?: boolean;
 }
+
