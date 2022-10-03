@@ -140,10 +140,10 @@ class RdbgInspectorPanel {
 			this._panel.webview.onDidReceiveMessage((message) => {
 				switch (message.command) {
 					// Object
-					case 'customVariable':
+					case 'variable':
 						this.visualizeObjects(message.args)
 						break;
-					case 'customEvaluate':
+					case 'evaluate':
 						this.evalExpression(message.args);
 						break;
 
@@ -195,10 +195,9 @@ class RdbgInspectorPanel {
 			return;
 		}
 
-		const data = await this.simplifyData(resp);
 		this._panel.webview.postMessage({
 			command: 'objectInspected',
-			objects: data,
+			content: resp,
 		})
 	}
 
@@ -266,121 +265,10 @@ class RdbgInspectorPanel {
 
 		this.variablesReference = resp.variablesReference;
 
-		const data = await this.simplifyData(resp);
 		this._panel.webview.postMessage({
 			command: 'objectInspected',
-			objects: data,
+			content: resp,
 		})
-	}
-
-	private async simplifyData(resp: { data: { [key: string]: any; type: string; data: any[]; }[]; }) {
-		const toString = Object.prototype.toString;
-
-		resp.data.forEach((obj: { type: string, data: any[], [key: string]: any }) => {
-			switch (obj.type) {
-				case 'table':
-					const row = obj.data[0];
-					switch (toString.call(row)) {
-						case '[object Object]':
-							obj.data = obj.data.map((row) => {
-								return Object.values(row)
-							})
-							if (obj.columns === undefined) {
-								obj.columns = Object.keys(row);
-							}
-							break;
-						default:
-							obj.data = obj.data.map((row, idx) => {
-								return [idx.toString(), row]
-							})
-							obj.columns = ['index', 'element']
-							break;
-					}
-					break;
-				case 'barChart':
-				case 'lineChart':
-					const firstElem = obj.data[0];
-					const datasets = [];
-					const labels: string[] = [];
-					switch (toString.call(firstElem)) {
-						case '[object Object]':
-							if (obj.xAxisKeys instanceof Array) {
-								const key = obj.xAxisKeys[0];
-								for (const elem of obj.data) {
-									labels.push(elem[key].toString());
-								}
-								obj.labels = labels;
-							} else {
-								for (let i = 0; i < obj.data.length; i++) {
-									labels[i] = '';
-								}
-							}
-							if (obj.yAxisKeys instanceof Array) {
-								for (const key of obj.yAxisKeys) {
-									const data = [];
-									for (const elem of obj.data) {
-										data.push(elem[key]);
-									}
-									datasets.push(
-										{
-											label: key.toString(),
-											data,
-											backgroundColor: this.getRandColor()
-										}
-									)
-								}
-							}
-							obj.convData = {
-								labels,
-								datasets
-							}
-							break;
-						case '[object Array]':
-							for (let i = 0; i < obj.data.length; i++) {
-								labels[i] = '';
-							}
-							const yAxisKeys: number[] = []
-							for (let i = 0; i < firstElem.length; i++) {
-								yAxisKeys.push(i);
-							}
-							for (const key of yAxisKeys) {
-								const data = [];
-								for (const elem of obj.data) {
-									data.push(elem[key]);
-								}
-								datasets.push(
-									{
-										label: key.toString(),
-										data,
-										backgroundColor: this.getRandColor()
-									}
-								)
-							}
-							obj.convData = {
-								labels,
-								datasets
-							}
-							break;
-						case '[object Number]':
-							for (let i = 0; i < obj.data.length; i++) {
-								labels[i] = '';
-							}
-							datasets.push(
-								{
-									data: obj.data,
-									backgroundColor: this.getRandColor()
-								}
-							)
-							obj.convData = {
-								labels,
-								datasets
-							}
-							break;
-					}
-					break;
-			}
-		})
-		return resp.data;
 	}
 
 	private focusNonWebViewEditor() {

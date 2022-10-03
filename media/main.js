@@ -64,7 +64,7 @@ import { ObjectInspector } from './object.js'
         switch (data.command) {
             case 'objectInspected':
                 objectTab.click();
-                objectInspector.printEvalResult(data);
+                objectInspector.printEvalResult(data.content);
                 break;
             case 'execLogsUpdated':
                 historyInspector.printExecLogs(data.logs, data.currentLogIndex, data.totalLength)

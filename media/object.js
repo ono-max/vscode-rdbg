@@ -70,39 +70,46 @@ export class ObjectInspector {
         document.body.appendChild(this.#objectView);
     }
 
-    printEvalResult(data) {
+    printEvalResult(content) {
         const visualization = document.createElement('select');
         visualization.name = 'visualization';
         visualization.className = 'visualization';
         const charts = document.createElement('div');
-        data.objects.forEach((obj, idx) => {
-            switch (obj.type) {
-                case 'table':
+        for (const mimeType of Object.keys(content.data)) {
+            switch (mimeType) {
+                case 'application/rdbg.table+json':
                     const tableOpt = document.createElement('option');
                     tableOpt.value = 'table';
                     tableOpt.innerText = 'Table';
-                    tableOpt.dataset.index = idx.toString();
+                    tableOpt.dataset.mimeType = mimeType;
                     visualization.appendChild(tableOpt);
                     break;
-                case 'barChart':
+                case 'application/rdbg.barchart+json':
                     const barChartOpt = document.createElement('option');
                     barChartOpt.value = 'bar';
                     barChartOpt.innerText = 'Bar Chart';
-                    barChartOpt.dataset.index = idx.toString();
+                    barChartOpt.dataset.mimeType = mimeType;
                     visualization.appendChild(barChartOpt);
                     break;
-                case 'lineChart':
+                case 'application/rdbg.linechart+json':
                     const lineChartOpt = document.createElement('option');
                     lineChartOpt.value = 'line'
                     lineChartOpt.innerText = 'Line Chart'
-                    lineChartOpt.dataset.index = idx.toString();
+                    lineChartOpt.dataset.mimeType = mimeType;
                     visualization.appendChild(lineChartOpt);
+                    break;
+                case 'text/plain':
+                    const textOpt = document.createElement('option');
+                    textOpt.value = 'text';
+                    textOpt.innerText = 'Text';
+                    textOpt.dataset.mimeType = mimeType;
+                    visualization.appendChild(textOpt);
                     break;
                 case 'html':
                     const htmlOpt = document.createElement('option');
                     htmlOpt.value = 'html'
                     htmlOpt.innerText = 'HTML View'
-                    htmlOpt.dataset.index = idx.toString();
+                    htmlOpt.dataset.mimeType = mimeType;
                     visualization.appendChild(htmlOpt);
                     break;
                 case 'image':
@@ -111,58 +118,68 @@ export class ObjectInspector {
                             const pngOpt = document.createElement('option');
                             pngOpt.value = 'png';
                             pngOpt.innerText = 'PNG Image';
-                            pngOpt.dataset.index = idx.toString();
+                            pngOpt.dataset.mimeType = mimeType;
                             visualization.appendChild(pngOpt);
                             break;
                         case 'svg':
                             const svgOpt = document.createElement('option');
                             svgOpt.value = 'svg';
                             svgOpt.innerText = 'SVG Image';
-                            svgOpt.dataset.index = idx.toString();
+                            svgOpt.dataset.mimeType = mimeType;
                             visualization.appendChild(svgOpt);
                             break;
                     }
                     break;
-                case 'tree':
+                case 'application/rdbg.tree+json':
                     const treeOpt = document.createElement('option');
                     treeOpt.value = 'tree';
                     treeOpt.innerText = 'Tree View';
-                    treeOpt.dataset.index = idx.toString();
+                    treeOpt.dataset.mimeType = mimeType;
                     visualization.appendChild(treeOpt);
                     break;
             }
-        })
+        }
+
         visualization.addEventListener('change', (e) => {
             const idx = visualization.selectedIndex;
             const opt = visualization.options[idx];
-            if (opt.dataset.index == undefined) return;
+            if (opt.dataset.mimeType == undefined) return;
             if (!(e.target instanceof HTMLSelectElement)) return;
-            const obj = data.objects[parseInt(opt.dataset.index)]
+            const mimeType = opt.dataset.mimeType;
             switch (e.target.value) {
                 case 'bar':
                     while (charts.firstChild) {
                         charts.removeChild(charts.firstChild);
                     }
-                    const barChart = this.createGraph(obj, 'bar');
+                    const barChart = this.createGraph(content.data[mimeType], content.metadata[mimeType], 'bar');
                     charts.appendChild(barChart);
                     break;
                 case 'line':
                     while (charts.firstChild) {
                         charts.removeChild(charts.firstChild);
                     }
-                    const lineChart = this.createGraph(obj, 'line');
+                    const lineChart = this.createGraph(content.data[mimeType], content.metadata[mimeType], 'line');
                     charts.appendChild(lineChart);
                     break;
                 case 'table':
                     while (charts.firstChild) {
                         charts.removeChild(charts.firstChild);
                     }
-                    const table = this.createTable(obj);
+                    const table = this.createTable(content.data[mimeType], content.metadata[mimeType]);
                     charts.appendChild(table);
-                    if (obj.paginate !== undefined) {
-                        const ul = this.paginate(obj.paginate.totalLen);
+                    const paginate = content.metadata[mimeType].paginate
+                    if (paginate !== undefined) {
+                        const ul = this.paginate(paginate.totalLen);
                         charts.appendChild(ul);
                     }
+                    break;
+                case 'text':
+                    while (charts.firstChild) {
+                        charts.removeChild(charts.firstChild);
+                    }
+                    const textView = document.createElement('div');
+                    textView.innerText = content.data[mimeType];
+                    charts.appendChild(textView);
                     break;
                 case 'html':
                     while (charts.firstChild) {
@@ -199,8 +216,8 @@ export class ObjectInspector {
                     }
                     const treeView = document.createElement('div');
                     treeView.className = 'treeView';
-                    console.log(obj.data)
-                    const view = this.getTreeView(obj.data);
+                    const treedata = JSON.parse(content.data[mimeType]);
+                    const view = this.getTreeView(treedata, content.metadata[mimeType]);
                     treeView.append(view);
                     charts.appendChild(treeView);
                     break;
@@ -214,7 +231,7 @@ export class ObjectInspector {
         }
     };
 
-    getTreeView(data) {
+    getTreeView(data, metadata) {
         const ul = document.createElement('ul');
         data.forEach((obj) => {
             for (let [key, value] of Object.entries(obj)) {
@@ -258,12 +275,11 @@ export class ObjectInspector {
         return ""
     }
 
-    createGraph(params, type) {
+    createGraph(rawdata, metadata, type) {
+        const data = this._simplifyChartData(rawdata, metadata);
         const chartView = document.createElement('div');
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
-        const uid = new Date().getTime().toString()
-        const data = params.convData || params.data;
         const cfg = {
             type,
             data
@@ -275,6 +291,118 @@ export class ObjectInspector {
         );
         chartView.appendChild(canvas);
         return chartView;
+    }
+
+    _simplifyChartData(rawdata, metadata) {
+        const toString = Object.prototype.toString;
+        const firstElem = rawdata[0];
+        const datasets = [];
+        const labels = [];
+        switch (toString.call(firstElem)) {
+            case '[object Object]':
+                if (metadata.xAxisKeys instanceof Array) {
+                    const key = metadata.xAxisKeys[0];
+                    for (const elem of rawdata) {
+                        labels.push(elem[key].toString());
+                    }
+                    metadata.labels = labels;
+                } else {
+                    for (let i = 0; i < rawdata.length; i++) {
+                        labels[i] = '';
+                    }
+                }
+                if (metadata.yAxisKeys instanceof Array) {
+                    for (const key of metadata.yAxisKeys) {
+                        const data = [];
+                        for (const elem of rawdata) {
+                            data.push(elem[key]);
+                        }
+                        datasets.push(
+                            {
+                                label: key.toString(),
+                                data,
+                                backgroundColor: this._getRandColor()
+                            }
+                        )
+                    }
+                }
+                return {
+                    labels,
+                    datasets
+                }
+            case '[object Array]':
+                for (let i = 0; i < rawdata.length; i++) {
+                    labels[i] = '';
+                }
+                const yAxisKeys = []
+                for (let i = 0; i < firstElem.length; i++) {
+                    yAxisKeys.push(i);
+                }
+                for (const key of yAxisKeys) {
+                    const data = [];
+                    for (const elem of rawdata) {
+                        data.push(elem[key]);
+                    }
+                    datasets.push(
+                        {
+                            label: key.toString(),
+                            data,
+                            backgroundColor: this._getRandColor()
+                        }
+                    )
+                }
+                return {
+                    labels,
+                    datasets
+                }
+            case '[object Number]':
+                for (let i = 0; i < rawdata.length; i++) {
+                    labels[i] = '';
+                }
+                datasets.push(
+                    {
+                        data: rawdata,
+                        backgroundColor: this._getRandColor()
+                    }
+                )
+                return {
+                    labels,
+                    datasets
+                }
+        }
+    }
+
+    _getRandColor() {
+        const r = Math.floor(Math.random() * 256)
+        const g = Math.floor(Math.random() * 256)
+        const b = Math.floor(Math.random() * 256)
+        return `rgba(${r}, ${g}, ${b}, 0.5)`
+    }
+
+    _simplifyTableData(rawdata, metadata) {
+        const row = rawdata[0];
+        let data;
+        let columns;
+        switch (toString.call(row)) {
+            case '[object Object]':
+                data = rawdata.map((row) => {
+                    return Object.values(row)
+                })
+                columns = metadata.columns || Object.keys(row);
+                return {
+                    data,
+                    columns
+                }
+            default:
+                data = rawdata.map((row, idx) => {
+                    return [idx.toString(), row]
+                })
+                columns = ['index', 'element']
+                return {
+                    data,
+                    columns
+                }
+        }
     }
 
     paginate(len) {
@@ -291,7 +419,7 @@ export class ObjectInspector {
                 this.removeCurEvalResult();
                 const offset = (i - 1) * this.pageSize;
                 this.#vscode.postMessage({
-                    command: 'updateTable',
+                    command: 'variable',
                     args: {
                         offset,
                         pageSize: this.pageSize
@@ -312,11 +440,12 @@ export class ObjectInspector {
         }
     }
 
-    createTable(objects) {
+    createTable(rawdata, metadata) {
+        const data = this._simplifyTableData(rawdata, metadata);
         const table = document.createElement('table');
         const thead = document.createElement('thead');
         const tr = document.createElement('tr');
-        objects.columns.forEach((col) => {
+        data.columns.forEach((col) => {
             const text = document.createTextNode(col);
             const th = document.createElement('th');
             th.appendChild(text);
@@ -325,7 +454,7 @@ export class ObjectInspector {
         thead.appendChild(tr);
         table.appendChild(thead);
         const tbody = document.createElement('tbody')
-        objects.data.forEach((obj) => {
+        data.data.forEach((obj) => {
             const tr = document.createElement('tr');
             obj.forEach((val) => {
                 const text = document.createTextNode(val);
