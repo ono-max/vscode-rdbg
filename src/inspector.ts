@@ -140,10 +140,10 @@ class RdbgInspectorPanel {
 			this._panel.webview.onDidReceiveMessage((message) => {
 				switch (message.command) {
 					// Object
-					case 'updateTable':
+					case 'customVariable':
 						this.visualizeObjects(message.args)
 						break;
-					case 'evaluate':
+					case 'customEvaluate':
 						this.evalExpression(message.args);
 						break;
 
