@@ -183,7 +183,7 @@ class RdbgInspectorPanel {
 	private async visualizeObjects(args: { offset: number, pageSize: number }) {
 		let resp: any;
 		try {
-			resp = await this._session.customRequest('getVisObjects', {
+			resp = await this._session.customRequest('customVariable', {
 				variablesReference: this.variablesReference,
 				keywords: {
 					offset: args.offset,
@@ -251,7 +251,7 @@ class RdbgInspectorPanel {
 
 		let resp: any;
 		try {
-			resp = await this._session.customRequest('evaluateVisObjects', {
+			resp = await this._session.customRequest('customEvaluate', {
 				expression: args.expression,
 				frameId: this._frameIdGetter.frameId,
 				keywords: {
@@ -266,51 +266,11 @@ class RdbgInspectorPanel {
 
 		this.variablesReference = resp.variablesReference;
 
-		resp = await this.getInspectedObject(resp);
 		const data = await this.simplifyData(resp);
 		this._panel.webview.postMessage({
 			command: 'objectInspected',
 			objects: data,
 		})
-	}
-
-	private async getInspectedObject(resp: any) {
-		const toString = Object.prototype.toString;
-
-		if (resp.toObjInspectorCalled) { return resp }
-
-		switch (toString.call(resp.data)) {
-			case '[object Array]':
-				const firstElem = resp.data[0];
-				switch (toString.call(firstElem)) {
-					case '[object Number]':
-						resp.data = [
-							{
-								type: 'table',
-								data: resp.data
-							},
-							{
-								type: 'barChart',
-								data: resp.data
-							},
-							{
-								type: 'lineChart',
-								data: resp.data
-							}
-						]
-						break;
-					case '[object String]':
-						resp.data = [
-							{
-								type: 'table',
-								data: resp.data
-							}
-						]
-						break;
-				}
-				break;
-		}
-		return resp;
 	}
 
 	private async simplifyData(resp: { data: { [key: string]: any; type: string; data: any[]; }[]; }) {
