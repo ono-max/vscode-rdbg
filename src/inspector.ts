@@ -197,7 +197,7 @@ class RdbgInspectorPanel {
 
 		const data = await this.simplifyData(resp);
 		this._panel.webview.postMessage({
-			command: 'tableUpdated',
+			command: 'objectInspected',
 			objects: data,
 		})
 	}
@@ -269,7 +269,7 @@ class RdbgInspectorPanel {
 		resp = await this.getInspectedObject(resp);
 		const data = await this.simplifyData(resp);
 		this._panel.webview.postMessage({
-			command: 'tableUpdated',
+			command: 'objectInspected',
 			objects: data,
 		})
 	}

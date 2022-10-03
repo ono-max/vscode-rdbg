@@ -62,7 +62,7 @@ import { ObjectInspector } from './object.js'
     window.addEventListener('message', event => {
         const data = event.data;
         switch (data.command) {
-            case 'tableUpdated':
+            case 'objectInspected':
                 objectTab.click();
                 objectInspector.printEvalResult(data);
                 break;
