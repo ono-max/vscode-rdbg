@@ -153,7 +153,7 @@ class RdbgInitialConfigurationProvider implements vscode.DebugConfigurationProvi
 				return null;
 			});
 
-		// launch without configuration
+		// launch without configuratio
 		if (vscode.window.activeTextEditor?.document.languageId != 'ruby')
 			return vscode.window.showInformationMessage("Select a ruby file to debug").then(_ => {
 				return null;
