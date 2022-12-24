@@ -2,6 +2,7 @@ import * as child_process from 'child_process';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
+import * as net from 'net';
 
 import {
 	CancellationToken,
@@ -513,6 +514,15 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 		return true;
 	}
 
+	getPort() {
+		const server = net.createServer();
+		server.listen(0);
+		const addr = server.address() as net.AddressInfo;
+		const port = addr.port;
+		server.close();
+		return port;
+	}
+
 	async launch_on_terminal(session: DebugSession): Promise<DebugAdapterDescriptor> {
 		const config = session.configuration as LaunchConfiguration;
 		const rdbg = config.rdbgPath || "rdbg";
@@ -534,8 +544,7 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 		} else if (process.platform === 'win32') {
 			// default
 			tcp_host = "localhost";
-			tcp_port = 0;
-			tcp_port_file = await this.get_tcp_port_file(config);
+			tcp_port = this.getPort();
 		} else {
 			sock_path = await this.get_sock_path(config);
 			if (!sock_path) {
