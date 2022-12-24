@@ -535,6 +535,7 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 			// default
 			tcp_host = "localhost";
 			tcp_port = 0;
+			tcp_port_file = await this.get_tcp_port_file(config);
 		} else {
 			sock_path = await this.get_sock_path(config);
 			if (!sock_path) {
