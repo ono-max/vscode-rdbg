@@ -531,8 +531,11 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 			if (tcp_port != undefined) {
 				tcp_port_file = await this.get_tcp_port_file(config);
 			}
-		}
-		else {
+		} else if (process.platform === 'win32') {
+			// default
+			tcp_host = "localhost";
+			tcp_port = 0;
+		} else {
 			sock_path = await this.get_sock_path(config);
 			if (!sock_path) {
 				return new DebugAdapterInlineImplementation(new StopDebugAdapter);
@@ -712,7 +715,7 @@ class RdbgAdapterDescriptorFactory implements DebugAdapterDescriptorFactory {
 		if (config.debugPort) {
 			[tcp_host, tcp_port, sock_path] = this.parse_port(config.debugPort);
 		}
-		else if (process.platform==='win32') {
+		else if (process.platform === 'win32') {
 			// default
 			tcp_host = "localhost";
 			tcp_port = 0;
