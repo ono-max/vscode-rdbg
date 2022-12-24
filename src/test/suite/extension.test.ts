@@ -77,7 +77,7 @@ suite('attach', () => {
 			suiteTeardown(() => {
 				process.env.RUBY_DEBUG_AUTOATTACH = undefined;
 			});
-	
+
 			test('success', async () => {
 				const addr = server.address() as net.AddressInfo;
 				const port = addr.port;
@@ -319,13 +319,9 @@ suite('launch', () => {
 		});
 	});
 
-	suite('unix domain socket: success', () => {
+	suite('default: success', () => {
 		const projectRoot = path.join(__dirname, '..', '..', '..');
 		const testData = path.join(projectRoot, 'src', 'test', 'testdata', 'test.rb');
-
-		setup(function () {
-			if (process.platform === 'win32') this.skip();
-		});
 
 		test('config.debugPort is undefined', async () => {
 			const c = generateLaunchConfig(testData);
@@ -342,7 +338,7 @@ suite('launch', () => {
 		});
 	});
 
-	suite('unix domain socket: fail', () => {
+	suite('unix domain socket: success', () => {
 		const projectRoot = path.join(__dirname, '..', '..', '..');
 		const testData = path.join(projectRoot, 'src', 'test', 'testdata', 'test.rb');
 		let tempDir: string | undefined;
@@ -463,4 +459,3 @@ interface LaunchConfiguration extends vscode.DebugConfiguration {
 
 	useTerminal?: boolean
 }
-
