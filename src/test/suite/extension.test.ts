@@ -405,7 +405,7 @@ function generateLaunchConfig(script: string): LaunchConfiguration {
 		config.command = process.env.RUBY_DEBUG_TEST_PATH;
 	}
 	if (process.platform === 'win32') {
-		config.waitLaunchTime = 5000;
+		config.waitLaunchTime = 10000;
 	}
 	return config;
 }
